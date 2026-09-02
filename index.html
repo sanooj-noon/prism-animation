@@ -1795,7 +1795,13 @@ function frame(nowMs) {
   state.prevElapsed = elapsed;
 
   // Resize
-  const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  // Resolution cap: fullscreen Retina (~5M px) through the HDR pipeline is
+  // GPU-bound on many machines; the artifact iframe looked smooth because it
+  // was small. Cap the framebuffer at ~2.2M px and let the display upscale --
+  // invisible on this dark, glow-dominated content.
+  const rawDpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const cssArea = Math.max(1, canvas.clientWidth * canvas.clientHeight);
+  const dpr = Math.min(rawDpr, Math.sqrt(2200000 / cssArea));
   const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
   const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
   if (w !== width || h !== height) {
