@@ -119,7 +119,7 @@ const PRISM_FRONT_Z = 0.315 * PRISM_SCALE;
 const PRISM_BACK_Z = 0.015 * PRISM_SCALE;
 const PRISM_LIGHT_PLANE_Z = 0.165 * PRISM_SCALE;
 const PRISM_MAX_INTERNAL_BOUNCES = 3;
-const PRISM_SPECTRAL_SAMPLES = 64;
+const PRISM_SPECTRAL_SAMPLES = 128;
 const PRISM_BEAM_SLICES = 24;
 const PRISM_LIGHT_EXPOSURE = 88;
 const WAVELENGTH_MIN = 400, WAVELENGTH_MAX = 700;
@@ -1215,11 +1215,11 @@ void main() {
   // Karis-weighted 2x2 resolve of the supersampled HDR scene: each sample is
   // weighted by 1/(1+luma), so ultra-bright subpixel highlights average down
   // smoothly instead of blowing every touched pixel to white (edge flicker).
-  vec2 texel = 1.0 / vec2(textureSize(uScene, 0));
-  vec3 s0 = max(textureLod(uScene, vUv + texel * vec2(-0.5, -0.5), 0.0).rgb, vec3(0.0));
-  vec3 s1 = max(textureLod(uScene, vUv + texel * vec2( 0.5, -0.5), 0.0).rgb, vec3(0.0));
-  vec3 s2 = max(textureLod(uScene, vUv + texel * vec2(-0.5,  0.5), 0.0).rgb, vec3(0.0));
-  vec3 s3 = max(textureLod(uScene, vUv + texel * vec2( 0.5,  0.5), 0.0).rgb, vec3(0.0));
+  ivec2 base = ivec2(gl_FragCoord.xy) * 2;
+  vec3 s0 = max(texelFetch(uScene, base, 0).rgb, vec3(0.0));
+  vec3 s1 = max(texelFetch(uScene, base + ivec2(1, 0), 0).rgb, vec3(0.0));
+  vec3 s2 = max(texelFetch(uScene, base + ivec2(0, 1), 0).rgb, vec3(0.0));
+  vec3 s3 = max(texelFetch(uScene, base + ivec2(1, 1), 0).rgb, vec3(0.0));
   float w0 = 1.0 / (1.0 + max(max(s0.r, s0.g), s0.b));
   float w1 = 1.0 / (1.0 + max(max(s1.r, s1.g), s1.b));
   float w2 = 1.0 / (1.0 + max(max(s2.r, s2.g), s2.b));
@@ -1629,7 +1629,7 @@ const bloomSpread = clamp((BLOOM.radius - 0.25) / (3 - 0.25), 0, 1);
 // ---------------------------------------------------------------------------
 // Render targets (sized on resize)
 // ---------------------------------------------------------------------------
-const SSAA = 1.5; // HDR scene supersampling factor (on top of 4x MSAA)
+const SSAA = 2;   // HDR scene supersampling factor (on top of 4x MSAA)
 let backgroundT, sceneT, presentT, bloomT = [];
 let width = 0, height = 0;
 function resizeTargets(w, h) {
@@ -1795,13 +1795,7 @@ function frame(nowMs) {
   state.prevElapsed = elapsed;
 
   // Resize
-  // Resolution cap: fullscreen Retina (~5M px) through the HDR pipeline is
-  // GPU-bound on many machines; the artifact iframe looked smooth because it
-  // was small. Cap the framebuffer at ~2.2M px and let the display upscale --
-  // invisible on this dark, glow-dominated content.
-  const rawDpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-  const cssArea = Math.max(1, canvas.clientWidth * canvas.clientHeight);
-  const dpr = Math.min(rawDpr, Math.sqrt(2200000 / cssArea));
+  const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
   const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
   const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
   if (w !== width || h !== height) {
