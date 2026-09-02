@@ -1818,7 +1818,7 @@ function frame(nowMs) {
     // Steady rotation about the vertical axis for the whole visible run — a
     // constant-rate yaw drift (a sine stalls at its peak, which read as the
     // rotation stopping), with a whisper of pitch breath on top.
-    const yaw = -0.45 + (elapsed / 4.7) * 1.45;   // ~-9deg -> +20deg, constant rate
+    const yaw = (elapsed / 4.7) * 1.45;   // 0 -> +20deg, constant rate, no start lurch
     state.orbitGoal = [Math.min(yaw, 1), 0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
     lerpToward(state.orbit, state.orbitGoal, CAMERA_ORBIT_LERP);
 
@@ -1828,7 +1828,7 @@ function frame(nowMs) {
     // so they land only every few frames and never cause hitches.
     const aimTarget = [0.5 + 0.06 * state.orbit[0], 0.5 + 0.04 * state.orbit[0]];
     const dist = Math.hypot(aimTarget[0] - state.aim[0], aimTarget[1] - state.aim[1]);
-    if (dist > 0.004) {
+    if (dist > 0.0008) {
       state.aim[0] += (aimTarget[0] - state.aim[0]) * LAMP_AIM_LERP;
       state.aim[1] += (aimTarget[1] - state.aim[1]) * LAMP_AIM_LERP;
       state.lightDirty = true;
@@ -1843,7 +1843,7 @@ function frame(nowMs) {
 
   // Coarse threshold: dispersion rebuilds land every few frames instead of
   // every frame, and stop entirely before the camera charge begins.
-  if (Math.abs(reveal.dispersion - state.dispersionMix) > 0.02 ||
+  if (Math.abs(reveal.dispersion - state.dispersionMix) > 0.004 ||
       (reveal.dispersion >= 1 && state.dispersionMix < 1)) {
     state.dispersionMix = reveal.dispersion;
     setDispersionProgress(reveal.dispersion);
