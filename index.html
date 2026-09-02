@@ -1,0 +1,2026 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+
+<title>Prism Refraction</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #prism { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; z-index: 1; mix-blend-mode: screen; }
+  /* --- Homepage (ported from the prism-app previous attempt) --- */
+  #homepage {
+    position: fixed; inset: 0; z-index: 0; background: #fff;
+    opacity: 0; overflow: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #111;
+  }
+  /* Staggered entrance: offset+fade, true ease-in-out, per-element delay. */
+  #homepage .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition-property: opacity, transform;
+    transition-duration: 550ms;
+    transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+    will-change: opacity, transform;
+  }
+  #homepage.show .reveal { opacity: 1; transform: translateY(0); }
+  .topnav { display: flex; align-items: center; gap: 32px; padding: 16px 32px; border-bottom: 1px solid #eee; }
+  .topnav__brand { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-right: 16px; }
+  .topnav__logo { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #111; color: #fff; border-radius: 5px; font-size: 13px; }
+  .topnav__links { display: flex; gap: 24px; color: #888; font-weight: 500; flex: 1; }
+  .topnav__links--active { color: #111; border-bottom: 2px solid #111; padding-bottom: 4px; }
+  .topnav__actions { display: flex; align-items: center; gap: 16px; }
+  .topnav__avatar { width: 28px; height: 28px; border-radius: 50%; background: #eee; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .page__content { padding: 32px; max-width: 1200px; margin: 0 auto; }
+  .page__eyebrow { color: #888; margin: 0 0 4px; font-size: 14px; }
+  .page__heading { font-size: 40px; margin: 0 0 24px; }
+  .filters { display: flex; align-items: center; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid #eee; margin-bottom: 24px; color: #888; font-size: 14px; }
+  .filters label strong { color: #111; }
+  .filters__search { margin-left: auto; padding: 8px 14px; border: 1px solid #ddd; border-radius: 8px; min-width: 220px; font: inherit; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+  .card { border: 1px solid #eee; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .card__banner { position: relative; height: 180px; display: flex; align-items: center; justify-content: center; }
+  .card__banner--blue { background: linear-gradient(135deg, #cfe3ff, #4f7cff); }
+  .card__banner--neutral { background: #eee; }
+  .card__banner--orange { background: linear-gradient(135deg, #ffe2b0, #e08a3c); }
+  .card__banner--illustration { background: #f2f2f2; }
+  .card__banner--pink { background: linear-gradient(135deg, #ffd7d7, #e2617a); }
+  .card__banner--purple { background: linear-gradient(135deg, #e6cfff, #8a4fe0); }
+  .card__phone { width: 70px; height: 130px; background: #fff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); }
+  .card__badge { position: absolute; right: 14px; bottom: -14px; width: 28px; height: 28px; border-radius: 50%; background: #d1315a; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; border: 2px solid #fff; }
+  .card__body { padding: 20px; flex: 1; }
+  .card__status { display: inline-flex; align-items: center; gap: 6px; color: #1a8a4a; background: #e8f8ee; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+  .card__status-dot { width: 6px; height: 6px; border-radius: 50%; background: #1a8a4a; }
+  .card__title { font-size: 17px; margin: 12px 0 4px; }
+  .card__owner { color: #888; font-size: 13px; margin: 0 0 16px; }
+  .card__meta { display: flex; gap: 32px; font-size: 13px; }
+  .card__meta-label { color: #888; margin-bottom: 2px; }
+  .card__meta-value { font-weight: 600; }
+  .card__footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-top: 1px solid #eee; font-size: 13px; color: #888; }
+  .card__vote { background: #111; color: #fff; border: none; padding: 8px 20px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) {
+    #homepage .reveal { opacity: 1; transform: none; transition: none; }
+  }
+</style>
+
+<canvas id="prism"></canvas>
+<div id="homepage">
+  <header class="reveal topnav" style="transition-delay:0ms">
+    <div class="topnav__brand"><span class="topnav__logo">P</span><span>Prism</span></div>
+    <nav class="topnav__links"><span>My forms</span><span class="topnav__links--active">Team</span></nav>
+    <div class="topnav__actions"><span aria-hidden="true">&#128276;</span><span class="topnav__avatar">S</span></div>
+  </header>
+  <main class="page__content">
+    <div class="reveal" style="transition-delay:80ms">
+      <p class="page__eyebrow">Shared workspace</p>
+      <h1 class="page__heading">Team</h1>
+    </div>
+    <div class="reveal filters" style="transition-delay:160ms">
+      <label>Pod <strong>All pods</strong> <span aria-hidden="true">&#8964;</span></label>
+      <label>Status <strong>All</strong> <span aria-hidden="true">&#8964;</span></label>
+      <input class="filters__search" placeholder="Search forms or people" />
+    </div>
+    <div class="card-grid" id="cardGrid"></div>
+  </main>
+</div>
+<script>
+'use strict';
+/*
+ * Prism loading animation — a faithful standalone recreation of the vgpu.sh
+ * hero (ported WebGPU/WGSL -> WebGL2/GLSL), mirrored so the white beam enters
+ * from the LEFT and the spectrum exits RIGHT.
+ *
+ * Physical model (values match the original source):
+ *  - Equilateral prism cross-section, circumradius 0.57/sqrt(3), extruded
+ *    z = 0.015 .. 0.315, beveled edges.
+ *  - Glass: IOR 1.645, Beer-Lambert absorption (1, 1, 0.54)/unit,
+ *    Schlick Fresnel F0 = ((n-1)/(n+1))^2, env reflection strength 2.14.
+ *  - Spectral beam: 128 wavelengths 400..700nm, 24 beam slices, Cauchy-style
+ *    dispersion n(l) = 1.245 + 0.06/(l um)^2, up to 3 TIR bounces,
+ *    per-interface Fresnel transmission, CIE-approx wavelength->RGB.
+ *  - HDR pipeline: linear scene -> threshold bloom pyramid -> ACES -> sRGB,
+ *    volumetric dust lit by the unthresholded low-frequency light field.
+ *  - Reveal: opacity eases in over 1s, beam aperture opens over 2.5s.
+ */
+
+// ---------------------------------------------------------------------------
+// Constants (from the original prism-background source)
+// ---------------------------------------------------------------------------
+const CAMERA_DISTANCE = 1.25;
+const CAMERA_FOV = 48;
+const CAMERA_ORBIT_DEGREES = 20;
+const CAMERA_ORBIT_LERP = 0.08;
+const LAMP_AIM_LERP = 0.12;
+const PRISM_SCALE = 0.4;                 // 20% smaller again (was 0.5)
+const PRISM_FRONT_Z = 0.315 * PRISM_SCALE;
+const PRISM_BACK_Z = 0.015 * PRISM_SCALE;
+const PRISM_LIGHT_PLANE_Z = 0.165 * PRISM_SCALE;
+const PRISM_MAX_INTERNAL_BOUNCES = 3;
+const PRISM_SPECTRAL_SAMPLES = 128;
+const PRISM_BEAM_SLICES = 24;
+const PRISM_LIGHT_EXPOSURE = 88;
+const WAVELENGTH_MIN = 400, WAVELENGTH_MAX = 700;
+const DISPERSION = { base: 1.245, strength: 0.06 };   // "stylized" preset (settled state)
+// Animated copy: the intro ramps `strength` from near zero (tight white exit
+// ray) up to the preset (full VIBGYOR fan). `base` is compensated so the
+// central 550nm ray keeps a constant IOR and the fan opens around it.
+const dispersionRuntime = { base: DISPERSION.base, strength: DISPERSION.strength };
+const IOR_AT_550_TERM = 1 / (0.55 * 0.55);
+function setDispersionProgress(mix) {
+  const strength = 0.004 + (DISPERSION.strength - 0.004) * clamp(mix, 0, 1);
+  dispersionRuntime.strength = strength;
+  dispersionRuntime.base = DISPERSION.base + (DISPERSION.strength - strength) * IOR_AT_550_TERM;
+}
+const GLASS = {
+  ior: 1.645,
+  absorption: [1, 1, 0.54],
+  reflectionStrength: 2.14,
+  environmentExposure: 2.3,
+};
+const LIGHT_FADE = {
+  beamOpacity: 1, edgeFalloff: 16,
+  rainbowFalloffRate: 3.8, rainbowFalloffPower: 3.7,
+};
+const BEAM_WIDTH = 0.025 * PRISM_SCALE;
+const BEAM_MOUSE_Y = { top: -35, bottom: 75 };
+const MIDPOINT_INCIDENCE = 60;
+const BLOOM_LEVELS = 4;
+const BLOOM_DIVISORS = [2, 4, 8, 16];
+const BLOOM_KERNEL_TAPS = [6, 10, 14, 18];
+const BLOOM_LEVEL_FACTORS = [1, 0.8, 0.55];
+const BLOOM = { strength: 0.7, threshold: 0.1, radius: 0.25 };
+const ENV_SIZE = [1024, 512];
+const DUST_COUNT = 950;
+const AMBIENT_COUNT = 380;   // extra faint self-lit specks in the surroundings
+
+// Equilateral triangle, circumradius 0.57/sqrt(3), apex up, centered at 0.
+const TRI = (() => {
+  const R = 0.57 * PRISM_SCALE / Math.sqrt(3);
+  const at = (deg) => {
+    const a = deg * Math.PI / 180;
+    return [R * Math.cos(a), R * Math.sin(a)];
+  };
+  return { a: at(90), b: at(210), c: at(330) };
+})();
+
+// ---------------------------------------------------------------------------
+// Small vector helpers
+// ---------------------------------------------------------------------------
+const add2 = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const sub2 = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const mul2 = (a, s) => [a[0] * s, a[1] * s];
+const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
+const cross2 = (a, b) => a[0] * b[1] - a[1] * b[0];
+const norm2 = (a) => { const l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l]; };
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const rad = (d) => d * Math.PI / 180;
+const rot2 = (v, a) => {
+  const c = Math.cos(a), s = Math.sin(a);
+  return [v[0] * c - v[1] * s, v[0] * s + v[1] * c];
+};
+
+// ---------------------------------------------------------------------------
+// 2D prism optics (CPU spectral ray tracer)
+// ---------------------------------------------------------------------------
+function intersectTriangle(tri, origin, dir, minT) {
+  const pts = [tri.a, tri.b, tri.c];
+  let best;
+  for (let i = 0; i < 3; i++) {
+    const p = pts[i];
+    const edge = sub2(pts[(i + 1) % 3], p);
+    const den = cross2(dir, edge);
+    if (den === 0) continue;
+    const diff = sub2(p, origin);
+    const t = cross2(diff, edge) / den;
+    const u = cross2(diff, dir) / den;
+    if (t <= minT || u < 0 || u > 1) continue;
+    if (best && best.t <= t) continue;
+    best = { t, normal: norm2([edge[1], -edge[0]]), edge: i };
+  }
+  return best;
+}
+
+function refract2(incident, normal, eta) {
+  const cosI = -dot2(incident, normal);
+  const k = eta * eta * (1 - cosI * cosI);
+  if (k > 1) return undefined;                       // total internal reflection
+  const cosT = Math.sqrt(1 - k);
+  return add2(mul2(incident, eta), mul2(normal, eta * cosI - cosT));
+}
+
+function fresnelTransmission(incident, normal, n1, n2) {
+  const cosI = clamp(-dot2(incident, normal), 0, 1);
+  const r = n1 / n2;
+  const k = r * r * (1 - cosI * cosI);
+  if (k >= 1) return 0;
+  const cosT = Math.sqrt(1 - k);
+  const rs = (n1 * cosI - n2 * cosT) / (n1 * cosI + n2 * cosT);
+  const rp = (n1 * cosT - n2 * cosI) / (n1 * cosT + n2 * cosI);
+  return 1 - 0.5 * (rs * rs + rp * rp);
+}
+
+const iorAt = (nm, base, strength) => {
+  const um = 0.001 * nm;
+  return base + strength / (um * um);
+};
+
+function tracePrismDetailed(tri, origin, dir, ior, maxBounces = PRISM_MAX_INTERNAL_BOUNCES) {
+  const entry = intersectTriangle(tri, origin, dir, 1e-4);
+  if (!entry || dot2(dir, entry.normal) >= 0) return undefined;
+  let p = add2(origin, mul2(dir, entry.t));
+  let d = refract2(dir, entry.normal, 1 / ior);
+  if (!d) return undefined;
+  const points = [p], edges = [entry.edge];
+  const entryTransmission = fresnelTransmission(dir, entry.normal, 1, ior);
+  let transmission = entryTransmission;
+  for (let bounce = 0; bounce <= maxBounces; bounce++) {
+    const hit = intersectTriangle(tri, p, d, 1e-4);
+    if (!hit) break;
+    p = add2(p, mul2(d, hit.t));
+    points.push(p);
+    edges.push(hit.edge);
+    const out = refract2(d, mul2(hit.normal, -1), ior);
+    if (out) {
+      transmission *= fresnelTransmission(d, mul2(hit.normal, -1), ior, 1);
+      return {
+        origin: p, direction: norm2(out), bounces: bounce,
+        points, edges, transmission, entryTransmission,
+      };
+    }
+    d = sub2(d, mul2(hit.normal, 2 * dot2(d, hit.normal)));
+  }
+  return undefined;
+}
+
+// CIE-fit wavelength -> beam RGB with luminous-efficiency shaping (original).
+const CIE_Y = [
+  82.7549, 91.486, 93.4318, 86.6823, 104.865, 117.008, 117.812, 114.861,
+  115.923, 108.811, 109.354, 107.802, 104.79, 107.689, 104.405, 104.046,
+  100, 96.3342, 95.788, 88.6856, 90.0062, 89.5991, 87.6987, 83.2886,
+  83.6992, 80.0268, 80.2146, 82.2778, 78.2842, 69.7213, 71.6091,
+];
+function wavelengthToBeamRgb(nm) {
+  const w = clamp(nm, WAVELENGTH_MIN, WAVELENGTH_MAX);
+  const g = (c, m, sl, sr) => { const t = (w - m) * (w < m ? sl : sr); return c * Math.exp(-0.5 * t * t); };
+  const X = g(0.362, 442, 0.0624, 0.0374) + g(1.056, 599.8, 0.0264, 0.0323) - g(0.065, 501.1, 0.049, 0.0382);
+  const Y = g(0.821, 568.8, 0.0213, 0.0247) + g(0.286, 530.9, 0.0613, 0.0322);
+  const Z = g(1.217, 437, 0.0845, 0.0278) + g(0.681, 459, 0.0385, 0.0725);
+  const rgb = [
+    3.2406 * X - 1.5372 * Y - 0.4986 * Z,
+    -0.9689 * X + 1.8758 * Y + 0.0415 * Z,
+    0.0557 * X - 0.204 * Y + 1.057 * Z,
+  ];
+  const mn = Math.min(0, ...rgb);
+  const pos = rgb.map((v) => v - mn);
+  const mx = Math.max(...pos, Number.EPSILON);
+  const idx = clamp((w - WAVELENGTH_MIN) / 10, 0, CIE_Y.length - 1);
+  const lo = Math.min(CIE_Y.length - 2, Math.floor(idx));
+  const f = idx - lo;
+  const lum = ((CIE_Y[lo] * (1 - f) + CIE_Y[lo + 1] * f) / 100) * Y / 1.0347;
+  const gain = (1 - Math.exp(-4.5 * lum)) / (1 - Math.exp(-4.5));
+  return [pos[0] / mx * gain * 1.1868, pos[1] / mx * gain, pos[2] / mx * gain * 2.2495];
+}
+const SPECTRAL_LUT = Array.from({ length: PRISM_SPECTRAL_SAMPLES }, (_, i) => {
+  const wl = WAVELENGTH_MIN + (WAVELENGTH_MAX - WAVELENGTH_MIN) * i / (PRISM_SPECTRAL_SAMPLES - 1);
+  return wavelengthToBeamRgb(wl);
+});
+
+// ---------------------------------------------------------------------------
+// Lamp (collimated beam). Mirrored in X so it enters from the LEFT.
+// ---------------------------------------------------------------------------
+function lampForIncidence(incidenceDeg, beamWidth, target) {
+  const edge = sub2(TRI.a, TRI.c);
+  const len = Math.hypot(edge[0], edge[1]);
+  const dir = rot2([-edge[1] / len, edge[0] / len], rad(-incidenceDeg));
+  const margin = Math.min(0.45, beamWidth / (2 * len * Math.max(0.05, Math.abs(Math.cos(rad(incidenceDeg))))) + 1e-4);
+  const t = clamp(clamp(target, margin, 1 - margin), 0, 1);
+  const hitPoint = [TRI.a[0] + (TRI.c[0] - TRI.a[0]) * t, TRI.a[1] + (TRI.c[1] - TRI.a[1]) * t];
+  const center = [hitPoint[0] - 6.5 * dir[0], hitPoint[1] - 6.5 * dir[1]];
+  const d = norm2(sub2(hitPoint, center));
+  // Mirror in X: triangle is symmetric about x=0, so this swaps entry face
+  // A-C (right) for A-B (left) and the beam travels left -> right.
+  return {
+    center: [-center[0], center[1]],
+    direction: [-d[0], d[1]],
+    beamHalfWidth: 0.5 * beamWidth,
+  };
+}
+function incidenceAt(arc) {
+  const a = clamp(arc, 0, 1);
+  return a <= 0.5
+    ? BEAM_MOUSE_Y.top + (MIDPOINT_INCIDENCE - BEAM_MOUSE_Y.top) * a * 2
+    : MIDPOINT_INCIDENCE + (BEAM_MOUSE_Y.bottom - MIDPOINT_INCIDENCE) * (a - 0.5) * 2;
+}
+const lampAt = (arc, target) => lampForIncidence(incidenceAt(arc), BEAM_WIDTH, target);
+
+// ---------------------------------------------------------------------------
+// Light-sheet mesh: white entry beam + per-wavelength internal strips +
+// outgoing spectral fan. CPU-built; colors and metadata baked per-vertex.
+// Layout: [x, y, r, g, b, intensity, profile, travel, revealProfile] (9 floats)
+// ---------------------------------------------------------------------------
+const LIGHT_SEGMENTS = PRISM_MAX_INTERNAL_BOUNCES + 1;
+const LIGHT_WHITE_QUADS = PRISM_BEAM_SLICES;
+const LIGHT_INTERNAL_QUADS = PRISM_SPECTRAL_SAMPLES * PRISM_BEAM_SLICES * LIGHT_SEGMENTS;
+const LIGHT_OUTGOING_QUADS = (PRISM_SPECTRAL_SAMPLES - 1) * PRISM_BEAM_SLICES;
+const LIGHT_TOTAL_QUADS = LIGHT_WHITE_QUADS + LIGHT_INTERNAL_QUADS + LIGHT_OUTGOING_QUADS;
+const LIGHT_STRIDE = 10; // + pathT: 0..1 white approach, 1..2 inside glass, 2..3 outgoing fan
+const BOUNDARY_PROFILES = Array.from({ length: PRISM_BEAM_SLICES + 1 }, (_, i) => -1 + 2 * i / PRISM_BEAM_SLICES);
+const QUAD_UPPER = [0, 1, 1, 0, 1, 0];
+const QUAD_END_TRAVEL = [0, 0, 1, 0, 1, 1];
+
+function lampOffset(light, profile) {
+  const perp = [-light.direction[1], light.direction[0]];
+  return add2(light.center, mul2(perp, light.beamHalfWidth * clamp(profile, -1, 1)));
+}
+
+function extendToWall(origin, dir, halfExtent) {
+  let best = Infinity;
+  for (let axis = 0; axis < 2; axis++) {
+    const d = dir[axis];
+    if (Math.abs(d) < 1e-8) continue;
+    for (const bound of [-halfExtent[axis], halfExtent[axis]]) {
+      const t = (bound - origin[axis]) / d;
+      if (t <= 0 || t >= best) continue;
+      const other = 1 - axis;
+      if (Math.abs(origin[other] + dir[other] * t) <= halfExtent[other] + 1e-6) best = t;
+    }
+  }
+  return Number.isFinite(best) ? add2(origin, mul2(dir, best)) : origin;
+}
+
+function segmentInWall(origin, dir, halfExtent) {
+  let tMin = -Infinity, tMax = Infinity;
+  for (let axis = 0; axis < 2; axis++) {
+    const d = dir[axis], o = origin[axis], h = halfExtent[axis];
+    if (Math.abs(d) < 1e-8) {
+      if (Math.abs(o) > h) return undefined;
+      continue;
+    }
+    const t0 = (-h - o) / d, t1 = (h - o) / d;
+    tMin = Math.max(tMin, Math.min(t0, t1));
+    tMax = Math.min(tMax, Math.max(t0, t1));
+    if (tMin > tMax) return undefined;
+  }
+  tMin = Math.max(0, tMin);
+  if (!Number.isFinite(tMin) || !Number.isFinite(tMax) || tMax < tMin) return undefined;
+  return [add2(origin, mul2(dir, tMin)), add2(origin, mul2(dir, tMax))];
+}
+
+function beamClipsTriangle(tri, beam) {
+  const perp = [-beam.direction[1], beam.direction[0]];
+  let poly = [tri.a, tri.b, tri.c].map((p) => {
+    const d = sub2(p, beam.center);
+    return [dot2(d, beam.direction), dot2(d, perp)];
+  });
+  const clip = (fn) => {
+    const prev = poly; poly = [];
+    for (let i = 0; i < prev.length; i++) {
+      const p = prev[i], q = prev[(i + 1) % prev.length];
+      const dp = fn(p), dq = fn(q);
+      if (dp >= 0) poly.push(p);
+      if ((dp >= 0) !== (dq >= 0)) {
+        const h = dp / (dp - dq);
+        poly.push([p[0] + (q[0] - p[0]) * h, p[1] + (q[1] - p[1]) * h]);
+      }
+    }
+  };
+  clip((p) => p[0]);
+  if (!poly.length) return false;
+  clip((p) => p[1] + beam.beamHalfWidth);
+  if (!poly.length) return false;
+  clip((p) => beam.beamHalfWidth - p[1]);
+  return poly.length > 0;
+}
+
+function samePath(a, b) {
+  return a.edges.length === b.edges.length && a.edges.every((e, i) => e === b.edges[i]);
+}
+
+function buildLightMesh(light, wallHalfExtent, out) {
+  const N = PRISM_SPECTRAL_SAMPLES, S = PRISM_BEAM_SLICES;
+  const exposure = PRISM_LIGHT_EXPOSURE;
+  const edgeFalloff = LIGHT_FADE.edgeFalloff;
+  const beamWidthTotal = 2 * light.beamHalfWidth;
+  let cursor = 0, quadIndex = 0;
+
+  const pushQuad = (sL, sU, eL, eU, iStart, iEnd, tStart = 0, tEnd = 0) => {
+    // Vertex order (startLower, startUpper, endUpper, startLower, endUpper, endLower)
+    const q = quadIndex++;
+    const verts = [[sL, iStart], [sU, iStart], [eU, iEnd], [sL, iStart], [eU, iEnd], [eL, iEnd]];
+    for (let c = 0; c < 6; c++) {
+      const [p, intensity] = verts[c];
+      const upper = QUAD_UPPER[c];
+      let colorR = 1, colorG = 1, colorB = 1;
+      let profile = 0, travel = 0, revealProfile = 0;
+      if (q < LIGHT_WHITE_QUADS) {
+        profile = BOUNDARY_PROFILES[q + upper];
+        revealProfile = profile;
+      } else {
+        const sq = q - LIGHT_WHITE_QUADS;
+        let spectralIndex;
+        if (sq < LIGHT_INTERNAL_QUADS) {
+          const perWl = S * LIGHT_SEGMENTS;
+          spectralIndex = Math.floor(sq / perWl);
+          const slice = Math.floor((sq % perWl) / LIGHT_SEGMENTS);
+          profile = BOUNDARY_PROFILES[slice + upper];
+          revealProfile = profile;
+        } else {
+          const oq = sq - LIGHT_INTERNAL_QUADS;
+          const slice = oq % S;
+          spectralIndex = Math.floor(oq / S) + upper;
+          travel = QUAD_END_TRAVEL[c];
+          revealProfile = 0.5 * (BOUNDARY_PROFILES[slice] + BOUNDARY_PROFILES[slice + 1]);
+        }
+        if (intensity >= 0) {
+          const rgb = SPECTRAL_LUT[Math.min(spectralIndex, N - 1)];
+          colorR = rgb[0]; colorG = rgb[1]; colorB = rgb[2];
+        }
+      }
+      out[cursor++] = p[0]; out[cursor++] = p[1];
+      out[cursor++] = colorR; out[cursor++] = colorG; out[cursor++] = colorB;
+      out[cursor++] = Math.max(intensity, 0);
+      out[cursor++] = profile; out[cursor++] = travel; out[cursor++] = revealProfile;
+      out[cursor++] = QUAD_END_TRAVEL[c] ? tEnd : tStart;
+    }
+  };
+  const emptyQuad = () => pushQuad([0, 0], [0, 0], [0, 0], [0, 0], -1, -1);
+
+  // Slice-center lateral weights (gaussian falloff, feathered edges, normalized)
+  const centers = Array.from({ length: S }, (_, i) => -1 + 2 * (i + 0.5) / S);
+  const rawWeights = centers.map((t) => {
+    const e = clamp((Math.abs(t) - 0.55) / 0.45, 0, 1);
+    return Math.exp(-edgeFalloff * t * t) * (1 - e * e * (3 - 2 * e));
+  });
+  const weightSum = rawWeights.reduce((a, b) => a + b, 0) || 1;
+  const weights = rawWeights.map((w) => w / weightSum);
+
+  // White entry beam
+  const backDir = [-light.direction[0], -light.direction[1]];
+  const boundaries = BOUNDARY_PROFILES.map((profile) => {
+    const origin = lampOffset(light, profile);
+    const hit = intersectTriangle(TRI, origin, light.direction, 1e-4);
+    const entry = hit && dot2(light.direction, hit.normal) < 0
+      ? add2(origin, mul2(light.direction, hit.t)) : undefined;
+    return { profile, origin, entry, wall: segmentInWall(origin, light.direction, wallHalfExtent) };
+  });
+  for (let s = 0; s < S; s++) {
+    const lo = boundaries[s], hi = boundaries[s + 1];
+    if (lo.entry && hi.entry) {
+      pushQuad(
+        extendToWall(lo.entry, backDir, wallHalfExtent),
+        extendToWall(hi.entry, backDir, wallHalfExtent),
+        lo.entry, hi.entry, 0, 6, 0, 1,
+      );
+    } else {
+      const mid = (lo.profile + hi.profile) * 0.5;
+      const subBeam = {
+        center: lampOffset(light, mid),
+        direction: light.direction,
+        beamHalfWidth: light.beamHalfWidth * (hi.profile - lo.profile) * 0.5,
+      };
+      if (!beamClipsTriangle(TRI, subBeam) && lo.wall && hi.wall) {
+        pushQuad(lo.wall[0], hi.wall[0], lo.wall[1], hi.wall[1], 6, 6, 0, 2);
+      } else {
+        emptyQuad();
+      }
+    }
+  }
+
+  // Trace all wavelengths
+  const bands = [];
+  for (let i = 0; i < N; i++) {
+    const wl = WAVELENGTH_MIN + (WAVELENGTH_MAX - WAVELENGTH_MIN) * i / (N - 1);
+    const n = iorAt(wl, dispersionRuntime.base, dispersionRuntime.strength);
+    const paths = centers.map((p) => tracePrismDetailed(TRI, lampOffset(light, p), light.direction, n));
+    const boundaryPaths = BOUNDARY_PROFILES.map((p) => tracePrismDetailed(TRI, lampOffset(light, p), light.direction, n));
+    bands.push(paths.every((p) => !p) && boundaryPaths.every((p) => !p)
+      ? undefined : { wavelength: wl, paths, boundaryPaths });
+  }
+
+  // Outgoing intensity: flux conservation across neighbouring wavelength rays
+  const intensity = bands.map((band, e) => centers.map((_, sl) => {
+    if (!band || !band.paths[sl]) return 0;
+    let lo = e - 1; while (lo >= 0 && !(bands[lo] && bands[lo].paths[sl])) lo--;
+    let hi = e + 1; while (hi < bands.length && !(bands[hi] && bands[hi].paths[sl])) hi++;
+    if (lo < 0) lo = e;
+    if (hi >= bands.length) hi = e;
+    if (lo === hi) return 0;
+    const a = bands[lo].paths[sl], b = bands[hi].paths[sl];
+    if (!samePath(a, b)) return 0;
+    const mean = norm2(add2(a.direction, b.direction));
+    const tip = (p) => add2(p.origin, mul2(p.direction, 1));
+    const width = Math.abs(cross2(sub2(tip(b), tip(a)), mean));
+    const span = (hi - lo) / (bands.length - 1);
+    return exposure * beamWidthTotal * weights[sl] * band.paths[sl].transmission
+      / Math.max(width / span, 1e-4);
+  }));
+
+  // White-normalization for internal strips
+  const sum = bands.reduce((acc, b) => {
+    if (!b) return acc;
+    const c = wavelengthToBeamRgb(b.wavelength);
+    return [acc[0] + c[0], acc[1] + c[1], acc[2] + c[2]];
+  }, [0, 0, 0]);
+  const whiteScale = 6 / Math.max(sum[0], sum[1], sum[2], 1);
+
+  // Internal strips
+  for (const band of bands) {
+    if (!band) {
+      for (let i = 0; i < S * LIGHT_SEGMENTS; i++) emptyQuad();
+      continue;
+    }
+    for (let sl = 0; sl < S; sl++) {
+      const lo = band.boundaryPaths[sl], hi = band.boundaryPaths[sl + 1];
+      const ok = !!(lo && hi && samePath(lo, hi));
+      const level = ok ? whiteScale * (lo.entryTransmission + hi.entryTransmission) * 0.5 : 0;
+      const segCount = ok ? Math.max(1, lo.points.length - 1) : 1;
+      for (let seg = 0; seg < LIGHT_SEGMENTS; seg++) {
+        const p0 = lo && lo.points[seg], p1 = lo && lo.points[seg + 1];
+        const q0 = hi && hi.points[seg], q1 = hi && hi.points[seg + 1];
+        if (ok && p0 && p1 && q0 && q1) {
+          pushQuad(p0, q0, p1, q1, level, level,
+            1 + seg / segCount, 1 + (seg + 1) / segCount);
+        } else emptyQuad();
+      }
+    }
+  }
+
+  // Outgoing spectral fan
+  for (let e = 0; e < N - 1; e++) {
+    const a = bands[e], b = bands[e + 1];
+    for (let sl = 0; sl < S; sl++) {
+      const pa = a && a.paths[sl], pb = b && b.paths[sl];
+      if (!(pa && pb && samePath(pa, pb))) { emptyQuad(); continue; }
+      const iA = intensity[e][sl], iB = intensity[e + 1][sl];
+      const farA = extendToWall(pa.origin, pa.direction, wallHalfExtent);
+      const farB = extendToWall(pb.origin, pb.direction, wallHalfExtent);
+      // startLower=pa.origin(sample e), startUpper=pb.origin(e+1),
+      // endUpper=farB(e+1), endLower=farA(e)
+      const q = quadIndex++;
+      const verts = [
+        [pa.origin, iA, 0], [pb.origin, iB, 0], [farB, iB, 1],
+        [pa.origin, iA, 0], [farB, iB, 1], [farA, iA, 1],
+      ];
+      const sq = q - LIGHT_WHITE_QUADS - LIGHT_INTERNAL_QUADS;
+      const slice = sq % S;
+      const revealProfile = 0.5 * (BOUNDARY_PROFILES[slice] + BOUNDARY_PROFILES[slice + 1]);
+      for (let c = 0; c < 6; c++) {
+        const [p, level, travel] = verts[c];
+        const upper = QUAD_UPPER[c];
+        const rgb = SPECTRAL_LUT[Math.min(Math.floor(sq / S) + upper, N - 1)];
+        out[cursor++] = p[0]; out[cursor++] = p[1];
+        out[cursor++] = rgb[0]; out[cursor++] = rgb[1]; out[cursor++] = rgb[2];
+        out[cursor++] = Math.max(level, 0);
+        out[cursor++] = 0; out[cursor++] = travel; out[cursor++] = revealProfile;
+        out[cursor++] = 2 + travel;
+      }
+    }
+  }
+  return cursor;
+}
+
+// ---------------------------------------------------------------------------
+// Prism 3D mesh with beveled edges (port of prismMeshData)
+// ---------------------------------------------------------------------------
+function prismMeshData(tri = TRI, backZ = PRISM_BACK_Z, frontZ = PRISM_FRONT_Z) {
+  const bevel = Math.min(0.008 * PRISM_SCALE, 0.45 * Math.max(0, frontZ - backZ));
+  const corners = [tri.a, tri.b, tri.c];
+  const cornerFans = corners.map((p, i) => {
+    const prev = corners[(i + corners.length - 1) % corners.length];
+    const next = corners[(i + 1) % corners.length];
+    const toPrev = norm2([prev[0] - p[0], prev[1] - p[1]]);
+    const toNext = norm2([next[0] - p[0], next[1] - p[1]]);
+    const half = Math.acos(clamp(dot2(toPrev, toNext), -1, 1)) / 2;
+    const along = bevel / Math.max(Math.tan(half), 1e-6);
+    const diag = bevel / Math.max(Math.sin(half), 1e-6);
+    const bis = norm2([toPrev[0] + toNext[0], toPrev[1] + toNext[1]]);
+    const center = [p[0] + bis[0] * diag, p[1] + bis[1] * diag];
+    const start = [p[0] + toPrev[0] * along, p[1] + toPrev[1] * along];
+    const end = [p[0] + toNext[0] * along, p[1] + toNext[1] * along];
+    let a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
+    let a1 = Math.atan2(end[1] - center[1], end[0] - center[0]);
+    while (a1 <= a0) a1 += 2 * Math.PI;
+    return Array.from({ length: 5 }, (_, k) => {
+      const a = a0 + (a1 - a0) * k / 4;
+      const n = [Math.cos(a), Math.sin(a)];
+      return { position: [center[0] + n[0] * bevel, center[1] + n[1] * bevel], normal: n };
+    });
+  });
+  const edgeNormal = (p, q) => {
+    const d = [q[0] - p[0], q[1] - p[1]];
+    const l = Math.hypot(d[0], d[1]) || 1;
+    return [d[1] / l, -d[0] / l];
+  };
+  const outline = cornerFans.flatMap((fan, i) => {
+    const last = fan[fan.length - 1];
+    const nextFirst = cornerFans[(i + 1) % cornerFans.length][0];
+    const n = edgeNormal(corners[i], corners[(i + 1) % corners.length]);
+    return [
+      ...fan,
+      ...Array.from({ length: 15 }, (_, k) => {
+        const t = (k + 1) / 16;
+        return {
+          position: [
+            last.position[0] + (nextFirst.position[0] - last.position[0]) * t,
+            last.position[1] + (nextFirst.position[1] - last.position[1]) * t,
+          ],
+          normal: n,
+        };
+      }),
+    ];
+  });
+  const verts = [], indices = [], rings = [];
+  const pushVert = (p, n) => { const i = verts.length / 6; verts.push(...p, ...n); return i; };
+  const pushRing = (angle, z, nz) => {
+    const inset = bevel * (1 - Math.cos(angle));
+    const nScale = Math.cos(angle);
+    const ring = outline.map(({ position: p, normal: n }) =>
+      pushVert([p[0] - n[0] * inset, p[1] - n[1] * inset, z], [n[0] * nScale, n[1] * nScale, nz]));
+    rings.push(ring);
+    return ring;
+  };
+  const maxA = Math.PI / 2 - 0.06;
+  const sinMax = Math.sin(maxA);
+  for (let i = 4; i >= 0; i--) {
+    const a = maxA * i / 4;
+    pushRing(a, backZ + bevel - bevel * Math.sin(a) / sinMax, -Math.sin(a));
+  }
+  for (let i = 0; i <= 4; i++) {
+    const a = maxA * i / 4;
+    pushRing(a, frontZ - bevel + bevel * Math.sin(a) / sinMax, Math.sin(a));
+  }
+  for (let r = 0; r < rings.length - 1; r++) {
+    const a = rings[r], b = rings[r + 1];
+    for (let i = 0; i < outline.length; i++) {
+      const j = (i + 1) % outline.length;
+      indices.push(a[i], a[j], b[j], a[i], b[j], b[i]);
+    }
+  }
+  const cap = (ring, normal, back) => {
+    const dup = ring.map((idx) => pushVert([verts[6 * idx], verts[6 * idx + 1], verts[6 * idx + 2]], normal));
+    const cx = dup.reduce((s, i) => s + verts[6 * i], 0) / dup.length;
+    const cy = dup.reduce((s, i) => s + verts[6 * i + 1], 0) / dup.length;
+    const cz = dup.reduce((s, i) => s + verts[6 * i + 2], 0) / dup.length;
+    const center = pushVert([cx, cy, cz], normal);
+    for (let i = 0; i < dup.length; i++) {
+      const j = (i + 1) % dup.length;
+      if (back) indices.push(center, dup[j], dup[i]);
+      else indices.push(center, dup[i], dup[j]);
+    }
+  };
+  cap(rings[0], [0, 0, -1], true);
+  cap(rings[rings.length - 1], [0, 0, 1], false);
+  return { vertices: new Float32Array(verts), indices: new Uint16Array(indices) };
+}
+
+function prismPlanes(tri = TRI, backZ = PRISM_BACK_Z, frontZ = PRISM_FRONT_Z) {
+  const pts = [tri.a, tri.b, tri.c];
+  const planes = pts.map((p, i) => {
+    const q = pts[(i + 1) % 3];
+    const d = [q[0] - p[0], q[1] - p[1]];
+    const l = Math.hypot(d[0], d[1]) || 1;
+    const n = [d[1] / l, -d[0] / l];
+    return [n[0], n[1], 0, n[0] * p[0] + n[1] * p[1]];
+  });
+  planes.push([0, 0, 1, frontZ], [0, 0, -1, -backZ]);
+  return planes;
+}
+
+// ---------------------------------------------------------------------------
+// Camera
+// ---------------------------------------------------------------------------
+function mat4Perspective(fovDeg, aspect, near, far) {
+  const f = 1 / Math.tan(rad(fovDeg) / 2);
+  const nf = 1 / (near - far);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) * nf, -1,
+    0, 0, 2 * far * near * nf, 0,
+  ]);
+}
+function mat4LookAt(eye, target, up) {
+  const zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
+  let zl = Math.hypot(zx, zy, zz) || 1;
+  const z = [zx / zl, zy / zl, zz / zl];
+  const x = [up[1] * z[2] - up[2] * z[1], up[2] * z[0] - up[0] * z[2], up[0] * z[1] - up[1] * z[0]];
+  const xl = Math.hypot(...x) || 1; x[0] /= xl; x[1] /= xl; x[2] /= xl;
+  const y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
+  return new Float32Array([
+    x[0], y[0], z[0], 0,
+    x[1], y[1], z[1], 0,
+    x[2], y[2], z[2], 0,
+    -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]),
+    -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]),
+    -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]), 1,
+  ]);
+}
+function mat4Mul(a, b) {
+  const out = new Float32Array(16);
+  for (let c = 0; c < 4; c++)
+    for (let r = 0; r < 4; r++) {
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+      out[c * 4 + r] = s;
+    }
+  return out;
+}
+function cameraView(aspect, orbitX = 0, orbitY = 0, target = [0, 0, 0], distance = CAMERA_DISTANCE) {
+  const yaw = rad(clamp(orbitX, -1, 1) * CAMERA_ORBIT_DEGREES);
+  const pitch = rad(-clamp(orbitY, -1, 1) * CAMERA_ORBIT_DEGREES);
+  const cp = Math.cos(pitch);
+  const pos = [
+    target[0] + Math.sin(yaw) * cp * distance,
+    target[1] + Math.sin(pitch) * distance,
+    target[2] + Math.cos(yaw) * cp * distance,
+  ];
+  const proj = mat4Perspective(CAMERA_FOV, aspect, 0.02, 4 * CAMERA_DISTANCE);
+  const view = mat4LookAt(pos, target, [0, 1, 0]);
+  return { viewProjection: mat4Mul(proj, view), position: pos };
+}
+function wallHalfHeight(aspect) {
+  // Largest |x|/aspect, |y| where any orbit-extreme frustum corner ray meets z=0.
+  let h = 0;
+  for (const ox of [-1, 0, 1]) for (const oy of [-1, 0, 1]) {
+    const yaw = rad(ox * CAMERA_ORBIT_DEGREES), pitch = rad(-oy * CAMERA_ORBIT_DEGREES);
+    const cp = Math.cos(pitch);
+    const pos = [Math.sin(yaw) * cp * CAMERA_DISTANCE, Math.sin(pitch) * CAMERA_DISTANCE, Math.cos(yaw) * cp * CAMERA_DISTANCE];
+    const fw = norm3([-pos[0], -pos[1], -pos[2]]);
+    const right = norm3(cross3(fw, [0, 1, 0]));
+    const up = cross3(right, fw);
+    const t = Math.tan(rad(CAMERA_FOV) / 2);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      const d = [0, 1, 2].map((i) => fw[i] + right[i] * sx * t * aspect + up[i] * sy * t);
+      if (d[2] >= 0) return Infinity;
+      const s = -pos[2] / d[2];
+      h = Math.max(h, Math.abs(pos[0] + d[0] * s) / aspect, Math.abs(pos[1] + d[1] * s));
+    }
+  }
+  return 1.02 * h;
+}
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm3 = (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+// ---------------------------------------------------------------------------
+// Reveal timing (heroRevealProgress)
+// ---------------------------------------------------------------------------
+function heroRevealProgress(t) {
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
+  // The ray physically travels: 0..1 white approach, 1..2 through the glass,
+  // 2..3 the dispersed fan extends to the frame edge.
+  // One continuous ease-out over the whole path — the ray shoots in fast and
+  // decelerates smoothly through the glass into the fan; no per-stage pauses.
+  const sweep = 3 * easeOut(t / 2.8);
+  // The fan opens after the front leaves the glass: the exit ray starts as a
+  // tight, near-white beam and spreads into the full spectrum.
+  const d = clamp((t - 1.0) / 1.3, 0, 1);   // fan fully open before the charge
+  const dispersion = d * d * (3 - 2 * d);            // smoothstep ease-in-out
+  // Camera: in motion from the very first frame — a brisk drift blended into
+  // an accelerating dive straight into the spectrum.
+  // Camera pull-back: no lateral pan — the shot stays centered. A gentle
+  // backward creep starts on the very first frame, then once the spectrum has
+  // formed the camera charges backward, the scene receding into the dark
+  // while the UI cascades in over it.
+  // Both phases are smooth (zero-slope at their ends) and overlap slightly,
+  // so the velocity curve is continuous — no kink where the charge begins.
+  const c = clamp(t / 2.6, 0, 1);
+  const creep = 0.06 * c * c * (3 - 2 * c);
+  // Ease-in-heavy: smoothstep over q^2 — a long, gentle wind-up that gathers
+  // speed late and still settles to a soft stop.
+  const q = clamp((t - 2.4) / 1.7, 0, 1);
+  const u = q * q;
+  const charge = u * u * (3 - 2 * u);
+  const approach = creep + (1 - 0.06) * charge;
+  const charging = q > 0;
+  const homeOpacity = clamp((t - 3.1) / 0.3, 0, 1);
+  const sceneFade = 1 - clamp((t - 3.5) / 0.9, 0, 1);
+  // Loop: hold the homepage, then everything eases down to black and replays.
+  const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
+  const fadeOut = 1 - k * k * (3 - 2 * k);
+  return {
+    opacity: easeOut(t / 0.6) * fadeOut,
+    beamWidth: easeOut((t - 0.05) / 0.7),
+    sweep,
+    dispersion,
+    approach,
+    sceneFade,
+    charging,
+    homeOpacity: homeOpacity * fadeOut,
+  };
+}
+const LOOP_FADE_START = 6.8;    // homepage holds until here
+const LOOP_FADE_DURATION = 0.7; // fade-to-black length
+const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.4; // + beat of black
+// World point the camera flies toward: on the light plane, out along the fan.
+const ZOOM_OUT_DISTANCE = 3.4;    // how far the camera charges back from the prism
+
+// ---------------------------------------------------------------------------
+// GLSL
+// ---------------------------------------------------------------------------
+const FS_QUAD_VS = `#version 300 es
+out vec2 vUv;
+void main() {
+  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  vUv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const GLSL_COLOR = `
+vec3 srgbToLinear3(vec3 v) {
+  bvec3 lo = lessThanEqual(v, vec3(0.04045));
+  vec3 a = v / 12.92;
+  vec3 b = pow((v + 0.055) / 1.055, vec3(2.4));
+  return mix(b, a, vec3(lo));
+}
+vec3 linearToSrgb3(vec3 v) {
+  bvec3 lo = lessThanEqual(v, vec3(0.0031308));
+  vec3 a = v * 12.92;
+  vec3 b = 1.055 * pow(max(v, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;
+  return mix(b, a, vec3(lo));
+}
+vec3 tonemapAces(vec3 v) {
+  return clamp((v * (2.51 * v + 0.03)) / (v * (2.43 * v + 0.59) + 0.14), vec3(0.0), vec3(1.0));
+}`;
+
+const ENV_BAKE_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 fragColor;
+${GLSL_COLOR}
+const float PI = 3.141592653589793;
+float panelMask(vec3 dir, vec3 forward, vec2 size, float feather) {
+  vec3 fwd = normalize(forward);
+  vec3 helper = abs(fwd.y) > 0.92 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+  vec3 right = normalize(cross(helper, fwd));
+  vec3 up = cross(fwd, right);
+  float facing = dot(dir, fwd);
+  if (facing <= 0.01) return 0.0;
+  float lx = abs(dot(dir, right) / facing);
+  float ly = abs(dot(dir, up) / facing);
+  return (1.0 - smoothstep(size.x, size.x + feather, lx))
+       * (1.0 - smoothstep(size.y, size.y + feather, ly));
+}
+void main() {
+  float phi = (vUv.x - 0.5) * 2.0 * PI;
+  float theta = vUv.y * PI;
+  vec3 dir = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
+  float floorBlend = 1.0 - smoothstep(-0.22, -0.02, dir.y);
+  vec3 room = mix(vec3(0.00025, 0.0003, 0.0004), vec3(0.006, 0.007, 0.009), floorBlend);
+  float negativeZ = 1.0 - smoothstep(-0.08, 0.08, dir.z);
+  float aboveFloor = smoothstep(-0.28, -0.08, dir.y);
+  room = mix(room, vec3(0.00002), negativeZ * aboveFloor);
+  float horizon = exp(-abs(dir.y + 0.1) * 22.0) * 0.0012;
+  vec3 color = room + vec3(horizon, horizon * 0.96, horizon * 0.9);
+  color += vec3(0.82, 0.84, 0.88) * (panelMask(dir, vec3(-0.82, 0.08, 0.57), vec2(1.35, 1.1), 0.22) * 0.011);
+  color += vec3(1.0, 0.97, 0.91) * (panelMask(dir, vec3(0.0, -0.707, 0.707), vec2(0.38, 0.62), 0.18) * 0.22);
+  color += vec3(0.76, 0.88, 1.0) * (panelMask(dir, vec3(0.612, 0.354, 0.707), vec2(0.5, 0.16), 0.035) * 20.0);
+  vec3 mapped = color / (vec3(1.0) + color);
+  fragColor = vec4(srgbToLinear3(pow(max(mapped, vec3(0.0)), vec3(1.0 / 2.2))), 1.0);
+}`;
+
+const GLASS_COMMON = `
+uniform mat4 uViewProjection;
+uniform vec3 uCameraPosition;
+uniform vec3 uAbsorption;
+uniform float uIor;
+uniform float uReflectionStrength;
+uniform float uEnvironmentExposure;
+uniform float uFresnelF0;
+uniform vec4 uPrismPlanes[5];
+uniform sampler2D uEnvironment;
+const float PI = 3.141592653589793;
+const float NO_HIT = 100000.0;
+const float SURFACE_EPSILON = 0.0002;
+vec2 equirectUv(vec3 direction) {
+  vec3 d = normalize(direction);
+  return vec2(atan(d.z, d.x) / (2.0 * PI) + 0.5, acos(clamp(d.y, -1.0, 1.0)) / PI);
+}
+const float ENV_TEXEL_ANGLE = ${(2 * Math.PI / ENV_SIZE[0]).toFixed(8)};
+vec3 sampleEnvironment(vec3 direction) {
+  // Prefiltered lookup: pick the mip whose texel footprint matches how fast
+  // the reflection direction changes across this pixel (the original's
+  // env_lod), so thin mirror highlights stay stable instead of shimmering.
+  float footprint = max(length(dFdx(direction)), length(dFdy(direction)));
+  float lod = clamp(log2(max(footprint, 1e-8) / ENV_TEXEL_ANGLE), 0.0, 7.0);
+  vec2 size = vec2(${ENV_SIZE[0]}.0, ${ENV_SIZE[1]}.0);
+  vec2 levelSize = max(size / exp2(lod), vec2(2.0));
+  vec2 texel = equirectUv(direction) * levelSize - 0.5;
+  vec2 corner = floor(texel);
+  vec2 f = fract(texel);
+  vec2 uv = (corner + f * f * (3.0 - 2.0 * f) + 0.5) / levelSize;
+  return textureLod(uEnvironment, uv, lod).rgb * uEnvironmentExposure;
+}
+float dielectricFresnel(float f0, float facing) {
+  float m = 1.0 - clamp(facing, 0.0, 1.0);
+  float sq = m * m;
+  return f0 + (1.0 - f0) * sq * sq * m;
+}
+float planeHitDistance(vec3 origin, vec3 direction, vec4 plane, float minT) {
+  float den = dot(plane.xyz, direction);
+  if (den <= 0.00001) return NO_HIT;
+  float d = (plane.w - dot(plane.xyz, origin)) / den;
+  return d > minT ? d : NO_HIT;
+}
+void nextSurface(vec3 origin, vec3 direction, float minT, out float outDist, out vec3 outNormal) {
+  float nearest = planeHitDistance(origin, direction, uPrismPlanes[3], minT);
+  vec3 normal = uPrismPlanes[3].xyz;
+  float backD = planeHitDistance(origin, direction, uPrismPlanes[4], minT);
+  if (backD < nearest) { nearest = backD; normal = uPrismPlanes[4].xyz; }
+  for (int i = 0; i < 3; i++) {
+    float d = planeHitDistance(origin, direction, uPrismPlanes[i], minT);
+    if (d < nearest) { nearest = d; normal = uPrismPlanes[i].xyz; }
+  }
+  outDist = nearest;
+  outNormal = normal;
+}`;
+
+const GLASS_VS = `#version 300 es
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aNormal;
+uniform mat4 uViewProjection;
+out vec3 vWorldPosition;
+out vec3 vWorldNormal;
+void main() {
+  gl_Position = uViewProjection * vec4(aPosition, 1.0);
+  vWorldPosition = aPosition;
+  vWorldNormal = aNormal;
+}`;
+
+const GLASS_BACK_FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPosition;
+in vec3 vWorldNormal;
+out vec4 fragColor;
+${GLASS_COMMON}
+struct ExitPath { vec3 position; vec3 direction; vec3 incidentDirection; vec3 inwardNormal; bool escaped; };
+ExitPath traceExit(vec3 firstPosition, vec3 firstDirection, vec3 firstInwardNormal) {
+  vec3 position = firstPosition;
+  vec3 direction = firstDirection;
+  vec3 inwardNormal = firstInwardNormal;
+  for (int bounce = 0; bounce <= 3; bounce++) {
+    vec3 transmitted = refract(direction, inwardNormal, uIor);
+    if (length(transmitted) > 0.00001)
+      return ExitPath(position, normalize(transmitted), direction, inwardNormal, true);
+    direction = normalize(reflect(direction, inwardNormal));
+    float dist; vec3 normal;
+    nextSurface(position + direction * SURFACE_EPSILON, direction, SURFACE_EPSILON, dist, normal);
+    if (dist >= 10.0) break;
+    position = position + direction * (dist + SURFACE_EPSILON);
+    inwardNormal = -normal;
+  }
+  return ExitPath(position, direction, direction, inwardNormal, false);
+}
+ExitPath traceReflectedExit(vec3 surfacePosition, vec3 incidentDirection, vec3 inwardNormal) {
+  vec3 direction = normalize(reflect(incidentDirection, inwardNormal));
+  vec3 shifted = surfacePosition + direction * SURFACE_EPSILON;
+  float dist; vec3 normal;
+  nextSurface(shifted, direction, SURFACE_EPSILON, dist, normal);
+  if (dist >= 10.0) return ExitPath(surfacePosition, direction, direction, inwardNormal, false);
+  return traceExit(shifted + direction * dist, direction, -normal);
+}
+void main() {
+  vec3 view = normalize(uCameraPosition - vWorldPosition);
+  vec3 incident = -view;
+  vec3 inwardNormal = -normalize(vWorldNormal);
+  ExitPath exitPath = traceExit(vWorldPosition, incident, inwardNormal);
+  ExitPath reflected = traceReflectedExit(exitPath.position, exitPath.incidentDirection, exitPath.inwardNormal);
+  float reflectedFacing = clamp(-dot(reflected.incidentDirection, reflected.inwardNormal), 0.0, 1.0);
+  float reflectedExitTransmission = reflected.escaped
+    ? 1.0 - dielectricFresnel(uFresnelF0, reflectedFacing) : 0.0;
+  vec3 reflectedEnvironment = sampleEnvironment(reflected.direction)
+    * uReflectionStrength * reflectedExitTransmission;
+  float facing = clamp(-dot(exitPath.incidentDirection, exitPath.inwardNormal), 0.0, 1.0);
+  float fresnel = dielectricFresnel(uFresnelF0, facing);
+  float reflectionWeight = exitPath.escaped ? fresnel : 1.0;
+  fragColor = vec4(reflectedEnvironment * reflectionWeight, reflectionWeight);
+}`;
+
+const GLASS_FRONT_FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPosition;
+in vec3 vWorldNormal;
+out vec4 fragColor;
+${GLASS_COMMON}
+uniform sampler2D uSceneTexture;
+vec2 projectToUv(vec3 point) {
+  vec4 clip = uViewProjection * vec4(point, 1.0);
+  vec2 ndc = clip.xy / max(clip.w, 0.00001);
+  return ndc * 0.5 + 0.5;
+}
+vec3 sampleBackground(vec2 uv) {
+  vec2 resolution = max(vec2(textureSize(uSceneTexture, 0)), vec2(1.0));
+  vec2 halfTexel = 0.5 / resolution;
+  return textureLod(uSceneTexture, clamp(uv, halfTexel, vec2(1.0) - halfTexel), 0.0).rgb;
+}
+void main() {
+  vec3 normal = normalize(vWorldNormal);
+  vec3 view = normalize(uCameraPosition - vWorldPosition);
+  vec3 incident = -view;
+  float facing = clamp(dot(view, normal), 0.0, 1.0);
+  vec3 reflectedEnvironment = sampleEnvironment(reflect(incident, normal));
+  float fresnel = dielectricFresnel(uFresnelF0, facing);
+  vec3 insideDirection = normalize(refract(incident, normal, 1.0 / uIor));
+  vec3 shifted = vWorldPosition + insideDirection * SURFACE_EPSILON;
+  float dist; vec3 exitNormal;
+  nextSurface(shifted, insideDirection, 0.0001, dist, exitNormal);
+  bool valid = dist < 10.0;
+  float travel = valid ? dist : 0.0;
+  vec3 interiorHit = shifted + insideDirection * travel;
+  vec2 resolution = max(vec2(textureSize(uSceneTexture, 0)), vec2(1.0));
+  vec2 originalUv = gl_FragCoord.xy / resolution;
+  vec2 refractedUv = valid ? projectToUv(interiorHit) : originalUv;
+  vec3 background = sampleBackground(refractedUv);
+  vec3 transmittance = exp(-uAbsorption * travel);
+  vec3 transmitted = valid ? background * transmittance : vec3(0.0);
+  vec3 reflected = reflectedEnvironment * uReflectionStrength;
+  float grazingWeight = pow(1.0 - facing, 1.5);
+  float environmentLuminance = dot(reflectedEnvironment, vec3(0.2126, 0.7152, 0.0722));
+  float studioPanelMask = smoothstep(0.5, 0.82, environmentLuminance);
+  vec3 physicalGlass = transmitted * (1.0 - fresnel) + reflected * fresnel;
+  float studioPanelStrength = studioPanelMask
+    * clamp(uReflectionStrength * 0.4, 0.0, 0.7)
+    * (0.65 + 0.35 * grazingWeight);
+  vec3 studioPanelHighlight = max(reflected * studioPanelStrength, vec3(0.0));
+  fragColor = vec4(max(physicalGlass, vec3(0.0)) + studioPanelHighlight, 1.0);
+}`;
+
+const LIGHT_VS = `#version 300 es
+layout(location = 0) in vec2 aPosition;
+layout(location = 1) in vec4 aColorIntensity;
+layout(location = 2) in vec3 aMeta; // profile, travel, revealProfile
+layout(location = 3) in float aPathT;
+uniform mat4 uViewProjection;
+uniform float uLightPlaneZ;
+out vec3 vColor;
+out float vIntensity;
+out float vProfile;
+out float vTravel;
+out float vRevealProfile;
+out float vPathT;
+void main() {
+  gl_Position = uViewProjection * vec4(aPosition, uLightPlaneZ, 1.0);
+  vColor = aColorIntensity.rgb;
+  vIntensity = aColorIntensity.a;
+  vProfile = aMeta.x;
+  vTravel = aMeta.y;
+  vRevealProfile = aMeta.z;
+  vPathT = aPathT;
+}`;
+
+const LIGHT_FS = `#version 300 es
+precision highp float;
+in vec3 vColor;
+in float vIntensity;
+in float vProfile;
+in float vTravel;
+in float vRevealProfile;
+in float vPathT;
+uniform float uEdgeFalloff;
+uniform float uOpacity;
+uniform float uRainbowFalloffRate;
+uniform float uRainbowFalloffPower;
+uniform float uBeamWidthReveal;
+uniform float uSweep; // travelling light front, 0..3 along the path
+out vec4 fragColor;
+float beamWidthReveal(float profile, float progress) {
+  float reveal = clamp(progress, 0.0, 1.0);
+  if (reveal <= 0.0) return 0.0;
+  if (reveal >= 1.0) return 1.0;
+  float antialias = max(fwidth(profile) * 1.5, 0.04);
+  return 1.0 - smoothstep(max(reveal - antialias, 0.0), min(reveal + antialias, 1.0), abs(profile));
+}
+void main() {
+  float radius = abs(vProfile);
+  float radialFalloff = exp(-uEdgeFalloff * radius * radius) * (1.0 - smoothstep(0.55, 1.0, radius));
+  float widthReveal = beamWidthReveal(vRevealProfile, uBeamWidthReveal);
+  float attenuationDistance = max(uRainbowFalloffRate, 0.0) * max(vTravel, 0.0);
+  float longitudinalFalloff = 1.0 / pow(1.0 + attenuationDistance, max(uRainbowFalloffPower, 0.0001));
+  // Travelling front: fragments light up as the sweep passes their position on
+  // the path, with a soft leading edge and a slight hot spot right at the front.
+  float sweepReveal = 1.0 - smoothstep(uSweep - 0.22, uSweep, vPathT);
+  float frontGlow = 1.0 + 1.6 * exp(-18.0 * abs(uSweep - vPathT)) * (1.0 - smoothstep(2.85, 3.0, uSweep));
+  fragColor = vec4(vColor * vIntensity * radialFalloff * widthReveal * longitudinalFalloff
+    * sweepReveal * frontGlow * max(uOpacity, 0.0), 0.0);
+}`;
+
+const COPY_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSource;
+out vec4 fragColor;
+void main() { fragColor = texelFetch(uSource, ivec2(gl_FragCoord.xy), 0); }`;
+
+const BLOOM_EXTRACT_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSource;
+uniform float uThreshold;
+out vec4 fragColor;
+void main() {
+  // Karis-weighted 4-tap box over the supersampled source keeps the bloom
+  // seed stable frame-to-frame (no shimmering halo from subpixel highlights).
+  vec2 texel = 1.0 / vec2(textureSize(uSource, 0));
+  vec3 c0 = max(textureLod(uSource, vUv + texel * vec2(-1.0, -1.0), 0.0).rgb, vec3(0.0));
+  vec3 c1 = max(textureLod(uSource, vUv + texel * vec2( 1.0, -1.0), 0.0).rgb, vec3(0.0));
+  vec3 c2 = max(textureLod(uSource, vUv + texel * vec2(-1.0,  1.0), 0.0).rgb, vec3(0.0));
+  vec3 c3 = max(textureLod(uSource, vUv + texel * vec2( 1.0,  1.0), 0.0).rgb, vec3(0.0));
+  float k0 = 1.0 / (1.0 + max(max(c0.r, c0.g), c0.b));
+  float k1 = 1.0 / (1.0 + max(max(c1.r, c1.g), c1.b));
+  float k2 = 1.0 / (1.0 + max(max(c2.r, c2.g), c2.b));
+  float k3 = 1.0 / (1.0 + max(max(c3.r, c3.g), c3.b));
+  vec3 color = (c0 * k0 + c1 * k1 + c2 * k2 + c3 * k3) / (k0 + k1 + k2 + k3);
+  float brightness = max(max(color.r, color.g), color.b);
+  float threshold = max(uThreshold, 0.0);
+  float knee = max(threshold * 0.5, 0.0001);
+  float soft = clamp(brightness - threshold + knee, 0.0, 2.0 * knee);
+  soft = soft * soft / (4.0 * knee + 0.0001);
+  float contribution = max(brightness - threshold, soft) / max(brightness, 0.0001);
+  fragColor = vec4(color * contribution, 1.0);
+}`;
+
+const BLOOM_BLUR_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSource;
+uniform vec2 uDirection;
+uniform vec2 uTexelSize;
+uniform float uTapCount;
+uniform float uCoefficients[24];
+out vec4 fragColor;
+void main() {
+  vec3 color = textureLod(uSource, vUv, 0.0).rgb * uCoefficients[0];
+  int taps = int(max(uTapCount, 1.0));
+  for (int tap = 1; tap < 24; tap++) {
+    if (tap >= taps) break;
+    vec2 offset = uDirection * uTexelSize * float(tap);
+    float w = uCoefficients[tap];
+    color += (textureLod(uSource, vUv + offset, 0.0).rgb
+            + textureLod(uSource, vUv - offset, 0.0).rgb) * w;
+  }
+  fragColor = vec4(max(color, vec3(0.0)), 1.0);
+}`;
+
+const BLOOM_COMPOSITE_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uLevel0;
+uniform sampler2D uLevel1;
+uniform sampler2D uLevel2;
+uniform float uRadius;
+uniform vec3 uFactors;
+out vec4 fragColor;
+float factorAt(int i) {
+  float nearW = i == 0 ? uFactors.x : (i == 1 ? uFactors.y : uFactors.z);
+  float farW = i == 0 ? uFactors.z : (i == 1 ? uFactors.y : uFactors.x);
+  return mix(nearW, farW, clamp(uRadius, 0.0, 1.0));
+}
+void main() {
+  float w0 = factorAt(0), w1 = factorAt(1), w2 = factorAt(2);
+  vec3 color = (textureLod(uLevel0, vUv, 0.0).rgb * w0
+              + textureLod(uLevel1, vUv, 0.0).rgb * w1
+              + textureLod(uLevel2, vUv, 0.0).rgb * w2)
+             / max(w0 + w1 + w2, 0.0001);
+  fragColor = vec4(max(color, vec3(0.0)), 1.0);
+}`;
+
+const PARTICLE_DOWNSAMPLE_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSource;
+uniform vec2 uSourceTexelSize;
+uniform vec2 uSourceToTargetScale;
+out vec4 fragColor;
+void main() {
+  vec3 color = vec3(0.0);
+  for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
+    vec2 grid = vec2(float(x), float(y)) - vec2(3.5);
+    vec2 offset = grid * 0.125 * uSourceToTargetScale * uSourceTexelSize;
+    color += textureLod(uSource, vUv + offset, 0.0).rgb;
+  }
+  fragColor = vec4(max(color / 64.0, vec3(0.0)), 1.0);
+}`;
+
+const PRESENT_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uScene;
+uniform sampler2D uBloom;
+uniform float uBloomStrength;
+out vec4 fragColor;
+${GLSL_COLOR}
+void main() {
+  // Karis-weighted 2x2 resolve of the supersampled HDR scene: each sample is
+  // weighted by 1/(1+luma), so ultra-bright subpixel highlights average down
+  // smoothly instead of blowing every touched pixel to white (edge flicker).
+  ivec2 base = ivec2(gl_FragCoord.xy) * 2;
+  vec3 s0 = max(texelFetch(uScene, base, 0).rgb, vec3(0.0));
+  vec3 s1 = max(texelFetch(uScene, base + ivec2(1, 0), 0).rgb, vec3(0.0));
+  vec3 s2 = max(texelFetch(uScene, base + ivec2(0, 1), 0).rgb, vec3(0.0));
+  vec3 s3 = max(texelFetch(uScene, base + ivec2(1, 1), 0).rgb, vec3(0.0));
+  float w0 = 1.0 / (1.0 + max(max(s0.r, s0.g), s0.b));
+  float w1 = 1.0 / (1.0 + max(max(s1.r, s1.g), s1.b));
+  float w2 = 1.0 / (1.0 + max(max(s2.r, s2.g), s2.b));
+  float w3 = 1.0 / (1.0 + max(max(s3.r, s3.g), s3.b));
+  vec3 scene = (s0 * w0 + s1 * w1 + s2 * w2 + s3 * w3) / (w0 + w1 + w2 + w3);
+  vec3 bloom = textureLod(uBloom, vUv, 0.0).rgb;
+  vec3 lin = max(scene + bloom * max(uBloomStrength, 0.0), vec3(0.0));
+  fragColor = vec4(linearToSrgb3(tonemapAces(lin)), 1.0);
+}`;
+
+const COPY_REVEAL_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uSource;
+uniform vec3 uBackgroundColor;
+uniform float uRevealProgress;
+out vec4 fragColor;
+void main() {
+  vec4 presented = texelFetch(uSource, ivec2(gl_FragCoord.xy), 0);
+  float reveal = clamp(uRevealProgress, 0.0, 1.0);
+  vec3 color = reveal >= 1.0 ? presented.rgb : mix(uBackgroundColor, presented.rgb, reveal);
+  fragColor = vec4(color, 1.0);
+}`;
+
+const DUST_VS = `#version 300 es
+precision highp float;
+uniform mat4 uViewProjection;
+uniform vec2 uFieldHalfExtent;
+uniform vec2 uOutputSize;
+uniform float uTime;
+uniform float uCameraDistance;
+uniform float uLightPlaneZ;
+uniform vec2 uPrismA;
+uniform vec2 uPrismB;
+uniform vec2 uPrismC;
+uniform float uPrismFrontZ;
+out vec2 vPointCoord;
+out vec2 vLightUv;
+flat out float vSparkle;
+flat out float vSoftness;
+flat out vec2 vPrismUvA;
+flat out vec2 vPrismUvB;
+flat out vec2 vPrismUvC;
+flat out float vOpacity;
+const float TAU = 6.28318530718;
+float hash11(float v) { return fract(sin(v * 127.1) * 43758.5453); }
+float hashU32(uint v) {
+  uint m = v;
+  m = m ^ (m >> 16u); m = m * 0x7feb352du;
+  m = m ^ (m >> 15u); m = m * 0x846ca68bu;
+  m = m ^ (m >> 16u);
+  return float(m & 0x00ffffffu) / 16777216.0;
+}
+vec2 quadCorner(int vi) {
+  int ci = vi == 0 ? 0 : (vi == 1 ? 1 : (vi == 2 ? 2 : (vi == 3 ? 2 : (vi == 4 ? 1 : 3))));
+  if (ci == 0) return vec2(-1.0, -1.0);
+  if (ci == 1) return vec2(1.0, -1.0);
+  if (ci == 2) return vec2(-1.0, 1.0);
+  return vec2(1.0, 1.0);
+}
+vec2 projectUv(vec3 p) {
+  vec4 clip = uViewProjection * vec4(p, 1.0);
+  return clip.xy / max(clip.w, 0.00001) * 0.5 + 0.5;
+}
+vec2 dustAppearance(float classSeed, float sizeSeed) {
+  // Large defocused-bokeh populations removed — grains, flakes, and small
+  // soft motes only.
+  if (classSeed < 0.82) return vec2(mix(1.05, 1.75, sizeSeed * sizeSeed), 0.04);
+  if (classSeed < 0.95) return vec2(mix(1.8, 3.8, pow(sizeSeed, 1.4)), 0.18);
+  return vec2(mix(4.2, 9.0, pow(sizeSeed, 0.75)), 0.58);
+}
+void main() {
+  float id = float(gl_InstanceID) + 1.0;
+  float seedLife = hash11(id * 19.127 + 71.0);
+  float seedPhase = hash11(id * 23.417 + 83.0);
+  float lifeDuration = mix(1.0, 7.0, seedLife);
+  float lifeClock = uTime + seedPhase * lifeDuration;
+  float lifeGeneration = floor(lifeClock / lifeDuration);
+  float lifePhase = fract(lifeClock / lifeDuration);
+  uint spawnKey = (uint(gl_InstanceID) + 1u) ^ (uint(lifeGeneration) * 0x9e3779b9u);
+  float seedX = hashU32(spawnKey ^ 0xa511e9b3u);
+  float seedY = hashU32(spawnKey ^ 0x63d83595u);
+  float seedZ = hashU32(spawnKey ^ 0x9e3779b9u);
+  float seedDepth = hashU32(spawnKey ^ 0xc2b2ae35u);
+  float seedSize = hash11(id * 7.731 + 31.0);
+  float seedClass = hash11(id * 9.173 + 37.0);
+  float seedEnergy = hash11(id * 11.917 + 43.0);
+  float seedShape = hash11(id * 13.531 + 47.0);
+  float seedAngle = hash11(id * 17.273 + 59.0);
+  float dustZ = uLightPlaneZ + (seedZ + seedDepth - 1.0) * 0.14;
+  vec3 worldPosition = vec3((seedX * 2.0 - 1.0) * uFieldHalfExtent.x,
+                            (seedY * 2.0 - 1.0) * uFieldHalfExtent.y, dustZ);
+  float depthScale = clamp((uCameraDistance - worldPosition.z) / max(uCameraDistance, 0.001), 0.08, 1.0);
+  worldPosition.xy *= depthScale;
+  worldPosition += vec3(
+    sin(uTime * mix(0.09, 0.17, seedY) + seedZ * TAU) * mix(0.008, 0.035, seedSize),
+    sin(uTime * mix(0.07, 0.14, seedZ) + seedX * TAU) * mix(0.01, 0.04, seedY),
+    sin(uTime * mix(0.05, 0.1, seedX) + seedY * TAU) * mix(0.006, 0.025, seedZ));
+  vec4 projected = uViewProjection * vec4(worldPosition, 1.0);
+  vec2 ndc = projected.xy / max(projected.w, 0.00001);
+  vec2 unsnappedUv = ndc * 0.5 + 0.5;
+  vec2 pixelCenter = floor(unsnappedUv * max(uOutputSize, vec2(1.0))) + vec2(0.5);
+  vec2 lightUv = pixelCenter / max(uOutputSize, vec2(1.0));
+  vec2 snappedNdc = lightUv * 2.0 - 1.0;
+  vec2 corner = quadCorner(gl_VertexID % 6);
+  vec2 appearance = dustAppearance(seedClass, seedSize);
+  float radiusPixels = appearance.x * 0.5;
+  float rawAspect = mix(0.68, 1.32, seedShape);
+  float aspect = mix(rawAspect, 1.0, appearance.y);
+  float angle = seedAngle * TAU;
+  vec2 axisX = vec2(cos(angle), sin(angle));
+  vec2 axisY = vec2(-axisX.y, axisX.x);
+  vec2 shapedCorner = axisX * corner.x * aspect + axisY * corner.y / max(aspect, 0.001);
+  vec2 clipOffset = shapedCorner * radiusPixels * 2.0 / max(uOutputSize, vec2(1.0));
+  float opacityBySize = min(1.0, pow(1.5 / max(appearance.x, 1.5), 0.9));
+  float energyVariation = 0.3 + 1.1 * pow(seedEnergy, 3.0);
+  float twinkleAmount = mix(0.015, 0.06, appearance.y);
+  float twinkle = 1.0 + twinkleAmount * sin(uTime * mix(0.12, 0.28, seedShape) + seedAngle * TAU);
+  float fadeFraction = mix(0.14, 0.24, seedShape);
+  float lifecycle = smoothstep(0.0, fadeFraction, lifePhase)
+    * (1.0 - smoothstep(1.0 - fadeFraction, 1.0, lifePhase));
+  gl_Position = vec4((snappedNdc + clipOffset) * projected.w, projected.z, projected.w);
+  vPointCoord = corner;
+  vLightUv = lightUv;
+  vSparkle = opacityBySize * energyVariation * twinkle;
+  vSoftness = appearance.y;
+  vPrismUvA = projectUv(vec3(uPrismA, uPrismFrontZ));
+  vPrismUvB = projectUv(vec3(uPrismB, uPrismFrontZ));
+  vPrismUvC = projectUv(vec3(uPrismC, uPrismFrontZ));
+  vOpacity = lifecycle;
+}`;
+
+const DUST_FS = `#version 300 es
+precision highp float;
+in vec2 vPointCoord;
+in vec2 vLightUv;
+flat in float vSparkle;
+flat in float vSoftness;
+flat in vec2 vPrismUvA;
+flat in vec2 vPrismUvB;
+flat in vec2 vPrismUvC;
+flat in float vOpacity;
+uniform sampler2D uColorTexture;
+uniform sampler2D uLightTexture;
+uniform vec2 uOutputSize;
+uniform float uRevealProgress;
+out vec4 fragColor;
+${GLSL_COLOR}
+const float LIGHT_RESPONSE = 82.0;
+const float LIGHT_FALLOFF_POWER = 5.5;
+const float DUST_EXPOSURE = 0.95;
+float edgeSide(vec2 s, vec2 e, vec2 p) {
+  vec2 edge = e - s; vec2 o = p - s;
+  return edge.x * o.y - edge.y * o.x;
+}
+bool insideTriangle(vec2 p, vec2 a, vec2 b, vec2 c) {
+  float sa = edgeSide(a, b, p), sb = edgeSide(b, c, p), sc = edgeSide(c, a, p);
+  bool hasNeg = sa < 0.0 || sb < 0.0 || sc < 0.0;
+  bool hasPos = sa > 0.0 || sb > 0.0 || sc > 0.0;
+  return !(hasNeg && hasPos);
+}
+void main() {
+  float r2 = dot(vPointCoord, vPointCoord);
+  if (r2 > 1.0) discard;
+  vec2 fragmentUv = gl_FragCoord.xy / max(uOutputSize, vec2(1.0));
+  if (insideTriangle(fragmentUv, vPrismUvA, vPrismUvB, vPrismUvC)) discard;
+  vec3 colorLight = max(textureLod(uColorTexture, vLightUv, 0.0).rgb, vec3(0.0));
+  vec3 light = max(textureLod(uLightTexture, vLightUv, 0.0).rgb, vec3(0.0));
+  float brightness = max(max(light.r, light.g), light.b);
+  if (light == vec3(0.0)) discard;
+  float lightResponse = 1.0 - exp(-brightness * LIGHT_RESPONSE);
+  float illumination = pow(clamp(lightResponse, 0.0, 1.0), LIGHT_FALLOFF_POWER);
+  float edgeFade = 1.0 - smoothstep(0.62, 1.0, r2);
+  float core = exp(-r2 * mix(6.5, 1.8, vSoftness));
+  float halo = exp(-r2 * 1.25) * vSoftness * 0.2;
+  float radial = (core + halo) * edgeFade;
+  float colorBrightness = max(max(colorLight.r, colorLight.g), colorLight.b);
+  vec3 hueSource = colorBrightness > 0.0000001 ? colorLight : light;
+  float hueBrightness = max(max(hueSource.r, hueSource.g), hueSource.b);
+  vec3 normalizedLight = hueSource / max(hueBrightness, 0.000001);
+  vec3 lightColor = linearToSrgb3(clamp(normalizedLight, vec3(0.0), vec3(1.0)));
+  float energy = illumination * radial * vSparkle * DUST_EXPOSURE;
+  float displayEnergy = linearToSrgb3(tonemapAces(vec3(energy))).r;
+  float reveal = clamp(uRevealProgress, 0.0, 1.0);
+  if (reveal <= 0.0) discard;
+  fragColor = vec4(lightColor * displayEnergy * vOpacity * reveal, 0.0);
+}`;
+
+const AMBIENT_VS = `#version 300 es
+precision highp float;
+uniform mat4 uViewProjection;
+uniform vec2 uFieldHalfExtent;
+uniform vec2 uOutputSize;
+uniform float uTime;
+uniform float uLightPlaneZ;
+out vec2 vPointCoord;
+flat out float vBrightness;
+const float TAU = 6.28318530718;
+float hash11(float v) { return fract(sin(v * 127.1) * 43758.5453); }
+vec2 quadCorner(int vi) {
+  int ci = vi == 0 ? 0 : (vi == 1 ? 1 : (vi == 2 ? 2 : (vi == 3 ? 2 : (vi == 4 ? 1 : 3))));
+  if (ci == 0) return vec2(-1.0, -1.0);
+  if (ci == 1) return vec2(1.0, -1.0);
+  if (ci == 2) return vec2(-1.0, 1.0);
+  return vec2(1.0, 1.0);
+}
+void main() {
+  float id = float(gl_InstanceID) + 1.0;
+  float sx = hash11(id * 3.117 + 11.0);
+  float sy = hash11(id * 5.923 + 17.0);
+  float sz = hash11(id * 7.331 + 23.0);
+  float sSize = hash11(id * 9.771 + 29.0);
+  float sPhase = hash11(id * 13.207 + 41.0);
+  float sTwinkle = hash11(id * 17.881 + 53.0);
+  // Scattered through the surrounding volume, drifting very slowly.
+  vec3 pos = vec3((sx * 2.0 - 1.0) * uFieldHalfExtent.x * 1.15,
+                  (sy * 2.0 - 1.0) * uFieldHalfExtent.y * 1.15,
+                  uLightPlaneZ + (sz - 0.5) * 0.5);
+  pos += vec3(
+    sin(uTime * mix(0.05, 0.12, sy) + sPhase * TAU) * 0.03,
+    sin(uTime * mix(0.04, 0.10, sx) + sz * TAU) * 0.035,
+    sin(uTime * mix(0.03, 0.08, sz) + sx * TAU) * 0.02);
+  vec4 projected = uViewProjection * vec4(pos, 1.0);
+  vec2 corner = quadCorner(gl_VertexID % 6);
+  float radiusPixels = mix(0.6, 1.6, sSize * sSize);
+  vec2 clipOffset = corner * radiusPixels * 2.0 / max(uOutputSize, vec2(1.0));
+  gl_Position = vec4(projected.xy + clipOffset * projected.w, projected.z, projected.w);
+  vPointCoord = corner;
+  // Slow independent twinkle; most specks are barely-there.
+  float base = mix(0.015, 0.10, pow(sSize, 3.0));
+  float tw = 0.6 + 0.4 * sin(uTime * mix(0.15, 0.5, sTwinkle) + sPhase * TAU);
+  vBrightness = base * tw;
+}`;
+
+const AMBIENT_FS = `#version 300 es
+precision highp float;
+in vec2 vPointCoord;
+flat in float vBrightness;
+uniform float uReveal;
+out vec4 fragColor;
+void main() {
+  float r2 = dot(vPointCoord, vPointCoord);
+  if (r2 > 1.0) discard;
+  float radial = exp(-r2 * 4.5) * (1.0 - smoothstep(0.6, 1.0, r2));
+  // Slightly cool white so the specks sit in the same palette as the key light.
+  fragColor = vec4(vec3(0.92, 0.96, 1.0) * (vBrightness * radial * clamp(uReveal, 0.0, 1.0)), 0.0);
+}`;
+
+// ---------------------------------------------------------------------------
+// WebGL2 setup
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById('prism');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false });
+if (!gl) throw new Error('WebGL2 is required');
+if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('EXT_color_buffer_float is required');
+
+function compile(type, source) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, source);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+    throw new Error(gl.getShaderInfoLog(s) + '\n' + source.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n'));
+  return s;
+}
+function program(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const uniforms = {};
+  const count = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < count; i++) {
+    const info = gl.getActiveUniform(p, i);
+    uniforms[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name);
+  }
+  return { p, u: uniforms };
+}
+const MSAA_SAMPLES = (() => {
+  const supported = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES);
+  return supported && supported.length ? Math.min(4, supported[0]) : 0;
+})();
+function createTarget(w, h, internalFormat = gl.RGBA16F, msaa = false) {
+  w = Math.max(1, w); h = Math.max(1, h);
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, internalFormat, w, h);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  let msaaFbo = null, rbo = null;
+  if (msaa && MSAA_SAMPLES > 1) {
+    rbo = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, rbo);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, MSAA_SAMPLES, internalFormat, w, h);
+    msaaFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, msaaFbo);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, rbo);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, fbo, msaaFbo, rbo, w, h };
+}
+const destroyTarget = (t) => {
+  if (!t) return;
+  gl.deleteTexture(t.tex);
+  gl.deleteFramebuffer(t.fbo);
+  if (t.msaaFbo) gl.deleteFramebuffer(t.msaaFbo);
+  if (t.rbo) gl.deleteRenderbuffer(t.rbo);
+};
+// Resolve the multisampled attachment into the target's texture.
+function resolveTarget(t) {
+  if (!t.msaaFbo) return;
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, t.msaaFbo);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, t.fbo);
+  gl.blitFramebuffer(0, 0, t.w, t.h, 0, 0, t.w, t.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+// Programs
+const progEnvBake = program(FS_QUAD_VS, ENV_BAKE_FS);
+const progGlassBack = program(GLASS_VS, GLASS_BACK_FS);
+const progGlassFront = program(GLASS_VS, GLASS_FRONT_FS);
+const progLight = program(LIGHT_VS, LIGHT_FS);
+const progCopy = program(FS_QUAD_VS, COPY_FS);
+const progExtract = program(FS_QUAD_VS, BLOOM_EXTRACT_FS);
+const progBlur = program(FS_QUAD_VS, BLOOM_BLUR_FS);
+const progComposite = program(FS_QUAD_VS, BLOOM_COMPOSITE_FS);
+const progParticleDown = program(FS_QUAD_VS, PARTICLE_DOWNSAMPLE_FS);
+const progPresent = program(FS_QUAD_VS, PRESENT_FS);
+const progCopyReveal = program(FS_QUAD_VS, COPY_REVEAL_FS);
+const progDust = program(DUST_VS, DUST_FS);
+const progAmbient = program(AMBIENT_VS, AMBIENT_FS);
+
+// Environment texture (baked once) — with a full mip chain so reflections
+// select a prefiltered level matching their pixel footprint (kills the
+// shimmer on razor-thin bevel highlights, like the original's env pyramid).
+const envTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, envTex);
+gl.texStorage2D(gl.TEXTURE_2D, 8, gl.RGBA16F, ENV_SIZE[0], ENV_SIZE[1]);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+const envFbo = gl.createFramebuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER, envFbo);
+gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, envTex, 0);
+gl.viewport(0, 0, ENV_SIZE[0], ENV_SIZE[1]);
+gl.useProgram(progEnvBake.p);
+const emptyVao = gl.createVertexArray();
+gl.bindVertexArray(emptyVao);
+gl.drawArrays(gl.TRIANGLES, 0, 3);
+gl.bindTexture(gl.TEXTURE_2D, envTex);
+gl.generateMipmap(gl.TEXTURE_2D);
+
+// Prism geometry
+const prismMesh = prismMeshData();
+const prismVao = gl.createVertexArray();
+gl.bindVertexArray(prismVao);
+const prismVbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, prismVbo);
+gl.bufferData(gl.ARRAY_BUFFER, prismMesh.vertices, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+const prismIbo = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, prismIbo);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, prismMesh.indices, gl.STATIC_DRAW);
+const prismIndexCount = prismMesh.indices.length;
+const PLANES = prismPlanes();
+const planesFlat = new Float32Array(PLANES.flat());
+const FRESNEL_F0 = ((GLASS.ior - 1) / (GLASS.ior + 1)) ** 2;
+
+// Light-sheet geometry (rebuilt on lamp changes)
+const lightVao = gl.createVertexArray();
+gl.bindVertexArray(lightVao);
+const lightVbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, lightVbo);
+const lightData = new Float32Array(LIGHT_TOTAL_QUADS * 6 * LIGHT_STRIDE);
+gl.bufferData(gl.ARRAY_BUFFER, lightData.byteLength, gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, LIGHT_STRIDE * 4, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 4, gl.FLOAT, false, LIGHT_STRIDE * 4, 8);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2, 3, gl.FLOAT, false, LIGHT_STRIDE * 4, 24);
+gl.enableVertexAttribArray(3);
+gl.vertexAttribPointer(3, 1, gl.FLOAT, false, LIGHT_STRIDE * 4, 36);
+gl.bindVertexArray(null);
+const LIGHT_VERTEX_COUNT = LIGHT_TOTAL_QUADS * 6;
+
+// Bloom kernel weights
+function bloomKernelWeights(taps) {
+  const n = Math.min(24, Math.max(1, Math.floor(taps)));
+  const sigma = n / 3;
+  const w = Array.from({ length: 24 }, (_, i) => (i < n ? Math.exp(-0.5 * i * i / (sigma * sigma)) : 0));
+  const total = w[0] + 2 * w.slice(1, n).reduce((a, b) => a + b, 0);
+  return w.map((v) => v / total);
+}
+const BLOOM_WEIGHTS = BLOOM_KERNEL_TAPS.map(bloomKernelWeights);
+const bloomSpread = clamp((BLOOM.radius - 0.25) / (3 - 0.25), 0, 1);
+
+// ---------------------------------------------------------------------------
+// Render targets (sized on resize)
+// ---------------------------------------------------------------------------
+const SSAA = 2;   // HDR scene supersampling factor (on top of 4x MSAA)
+let backgroundT, sceneT, presentT, bloomT = [];
+let width = 0, height = 0;
+function resizeTargets(w, h) {
+  destroyTarget(backgroundT); destroyTarget(sceneT); destroyTarget(presentT);
+  bloomT.forEach((l) => { destroyTarget(l.h); destroyTarget(l.v); });
+  // Geometry passes render supersampled AND 4x-multisampled, then downfilter.
+  const sw = Math.ceil(w * SSAA), sh = Math.ceil(h * SSAA);
+  backgroundT = createTarget(sw, sh, gl.RGBA16F, true);
+  sceneT = createTarget(sw, sh, gl.RGBA16F, true);
+  presentT = createTarget(w, h, gl.RGBA8);
+  bloomT = BLOOM_DIVISORS.map((d) => {
+    const bw = Math.max(1, Math.ceil(w / d)), bh = Math.max(1, Math.ceil(h / d));
+    return { h: createTarget(bw, bh), v: createTarget(bw, bh) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Runtime state
+// ---------------------------------------------------------------------------
+const state = {
+  aim: [0.5, 0.5],        // [arc(y), target(x)]
+  aimGoal: [0.5, 0.5],
+  orbit: [0, 0],
+  orbitGoal: [0, 0],
+  lightDirty: true,
+  aspect: 1,
+  startTime: undefined,
+  pointerActiveUntil: 0,
+  dispersionMix: -1,
+  prevElapsed: 0,
+};
+
+// Landing-page mode: no pointer interaction — the animation is fully scripted.
+// Click (or press R) to replay the intro.
+const homepageEl = document.getElementById('homepage');
+// Cards (data + reveal order ported from the prism-app previous attempt):
+// nav(0) -> heading(1) -> filters(2) -> each card in turn, 80ms stagger.
+{
+  const cards = [
+    { banner: 'blue', title: 'Picking a delivery plan', owner: 'alex@company.com', expires: '31 Aug', pod: 'Loyalty', responses: 6 },
+    { banner: 'neutral', title: "Joining someone's plan", owner: 'alex@company.com', expires: '31 Aug', pod: 'Loyalty', responses: 0 },
+    { banner: 'orange', title: 'Picking a One plan', owner: 'alex@company.com', expires: '31 Aug', pod: 'Loyalty', responses: 0 },
+    { banner: 'illustration', title: 'Family sharing invite', owner: 'jordan@company.com', expires: '5 Sep', pod: 'Growth', responses: 3 },
+    { banner: 'pink', title: 'Reviews and ratings 2.0', owner: 'jordan@company.com', expires: '5 Sep', pod: 'Growth', responses: 12 },
+    { banner: 'purple', title: 'Image gallery view', owner: 'sam@company.com', expires: '9 Sep', pod: 'Discovery', responses: 8 },
+  ];
+  const grid = document.getElementById('cardGrid');
+  cards.forEach((card, i) => {
+    const el = document.createElement('article');
+    el.className = 'reveal card';
+    el.style.transitionDelay = ((3 + i) * 80) + 'ms';
+    el.innerHTML = `
+      <div class="card__banner card__banner--${card.banner}">
+        <div class="card__phone"></div>
+        <span class="card__badge">${card.owner[0].toUpperCase()}</span>
+      </div>
+      <div class="card__body">
+        <span class="card__status"><span class="card__status-dot"></span> Active</span>
+        <h3 class="card__title">${card.title}</h3>
+        <p class="card__owner">${card.owner}</p>
+        <div class="card__meta">
+          <div><div class="card__meta-label">Expires on</div><div class="card__meta-value">${card.expires}</div></div>
+          <div><div class="card__meta-label">POD</div><div class="card__meta-value">${card.pod}</div></div>
+        </div>
+      </div>
+      <div class="card__footer">
+        <span><strong>${card.responses}</strong> responses</span>
+        <button type="button" class="card__vote">Vote</button>
+      </div>`;
+    grid.appendChild(el);
+  });
+}
+function replay() {
+  state.startTime = undefined;
+  state.dispersionMix = -1;
+  state.prevElapsed = 0;
+  state.orbit = [0, 0];
+  state.orbitGoal = [0, 0];
+  state.aim = [0.5, 0.5];
+  state.lightDirty = true;
+  homepageEl.style.opacity = 0;
+  homepageEl.classList.remove('show');
+}
+canvas.addEventListener('click', replay);
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R') replay();
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+});
+// Press F or double-click for fullscreen.
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.();
+}
+canvas.addEventListener('dblclick', toggleFullscreen);
+
+function lerpToward(cur, goal, k) {
+  let moved = false;
+  for (let i = 0; i < 2; i++) {
+    const d = goal[i] - cur[i];
+    if (Math.abs(d) > 1e-5) { cur[i] += d * k; moved = true; }
+  }
+  return moved;
+}
+
+function lightWallExtent(aspect) {
+  const h = wallHalfHeight(aspect);
+  const boost = Math.min(2.5, Math.max(1, 1 / Math.max(aspect, 0.001)));
+  return [h * aspect * boost, h * boost];
+}
+
+function rebuildLightMesh() {
+  const lamp = lampAt(state.aim[0], state.aim[1]);
+  const wrote = buildLightMesh(lamp, lightWallExtent(state.aspect), lightData);
+  gl.bindBuffer(gl.ARRAY_BUFFER, lightVbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, lightData, 0, wrote);
+  state.lightDirty = false;
+}
+
+function bindGlassUniforms(prog, camera) {
+  gl.uniformMatrix4fv(prog.u.uViewProjection, false, camera.viewProjection);
+  gl.uniform3fv(prog.u.uCameraPosition, camera.position);
+  gl.uniform3fv(prog.u.uAbsorption, GLASS.absorption);
+  gl.uniform1f(prog.u.uIor, GLASS.ior);
+  gl.uniform1f(prog.u.uReflectionStrength, GLASS.reflectionStrength);
+  gl.uniform1f(prog.u.uEnvironmentExposure, GLASS.environmentExposure);
+  gl.uniform1f(prog.u.uFresnelF0, FRESNEL_F0);
+  gl.uniform4fv(prog.u.uPrismPlanes, planesFlat);
+}
+
+function blurPass(level, dirH, sourceTex) {
+  const targetSet = bloomT[level];
+  const dst = dirH ? targetSet.h : targetSet.v;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+  gl.viewport(0, 0, dst.w, dst.h);
+  gl.useProgram(progBlur.p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sourceTex);
+  gl.uniform1i(progBlur.u.uSource, 0);
+  gl.uniform2f(progBlur.u.uDirection, dirH ? 1 : 0, dirH ? 0 : 1);
+  gl.uniform2f(progBlur.u.uTexelSize, 1 / dst.w, 1 / dst.h);
+  gl.uniform1f(progBlur.u.uTapCount, BLOOM_KERNEL_TAPS[level]);
+  gl.uniform1fv(progBlur.u.uCoefficients, BLOOM_WEIGHTS[level]);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+// ---------------------------------------------------------------------------
+// Frame loop
+// ---------------------------------------------------------------------------
+function frame(nowMs) {
+  requestAnimationFrame(frame);
+  const now = nowMs / 1000;
+  if (state.startTime === undefined) state.startTime = now;
+  const elapsed = (now - state.startTime) % REVEAL_CYCLE;   // looping timeline
+  // On cycle wrap (during the beat of black), reset the held rotation and
+  // beam aim so the new pass starts from neutral instead of visibly
+  // un-winding the pose the charge-back froze.
+  if (elapsed < state.prevElapsed) {
+    state.orbit = [0, 0];
+    state.orbitGoal = [0, 0];
+    state.aim = [0.5, 0.5];
+    state.lightDirty = true;
+  }
+  state.prevElapsed = elapsed;
+
+  // Resize
+  const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+  const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+  if (w !== width || h !== height) {
+    width = w; height = h;
+    canvas.width = w; canvas.height = h;
+    state.aspect = w / h;
+    resizeTargets(w, h);
+    state.lightDirty = true;
+  }
+
+  // Scripted landing animation: the beam holds its hero pose while the prism
+  // takes a very slight, slow horizontal rotation with a hint of breathing in
+  // the beam's incidence — no pointer interaction.
+  // Camera sway only — the beam aim stays fixed so the light mesh is never
+  // rebuilt for idle motion (rebuilds caused visible frame hitches).
+  // The slight rotation continues through the whole cycle — including while
+  // the camera charges back — following the same forward sweep (it never
+  // snaps back to center).
+  {
+    // Steady rotation about the vertical axis for the whole visible run — a
+    // constant-rate yaw drift (a sine stalls at its peak, which read as the
+    // rotation stopping), with a whisper of pitch breath on top.
+    const yaw = -0.45 + (elapsed / 4.7) * 1.45;   // ~-9deg -> +20deg, constant rate
+    state.orbitGoal = [Math.min(yaw, 1), 0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
+    lerpToward(state.orbit, state.orbitGoal, CAMERA_ORBIT_LERP);
+
+    // The optics respond to the rotation: as the prism turns, the beam's
+    // incidence angle shifts, so the refraction and the fan's exit direction
+    // genuinely change (re-traced through the glass). Rebuilds are thresholded
+    // so they land only every few frames and never cause hitches.
+    const aimTarget = [0.5 + 0.06 * state.orbit[0], 0.5 + 0.04 * state.orbit[0]];
+    const dist = Math.hypot(aimTarget[0] - state.aim[0], aimTarget[1] - state.aim[1]);
+    if (dist > 0.004) {
+      state.aim[0] += (aimTarget[0] - state.aim[0]) * LAMP_AIM_LERP;
+      state.aim[1] += (aimTarget[1] - state.aim[1]) * LAMP_AIM_LERP;
+      state.lightDirty = true;
+    }
+  }
+
+  const reveal = heroRevealProgress(elapsed);
+  // Camera pull-back: stay centered on the prism and charge backward.
+  const ap = reveal.approach;
+  const camDistance = CAMERA_DISTANCE + (ZOOM_OUT_DISTANCE - CAMERA_DISTANCE) * ap;
+  const camera = cameraView(state.aspect, state.orbit[0], state.orbit[1], [0, 0, 0], camDistance);
+
+  // Coarse threshold: dispersion rebuilds land every few frames instead of
+  // every frame, and stop entirely before the camera charge begins.
+  if (Math.abs(reveal.dispersion - state.dispersionMix) > 0.02 ||
+      (reveal.dispersion >= 1 && state.dispersionMix < 1)) {
+    state.dispersionMix = reveal.dispersion;
+    setDispersionProgress(reveal.dispersion);
+    state.lightDirty = true;
+  }
+  if (state.lightDirty) rebuildLightMesh();
+
+  gl.disable(gl.DEPTH_TEST);
+
+  // --- Background HDR: black wall + glass back interface + light sheet ---
+  gl.bindFramebuffer(gl.FRAMEBUFFER, backgroundT.msaaFbo || backgroundT.fbo);
+  gl.viewport(0, 0, backgroundT.w, backgroundT.h);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);       // premultiplied
+  gl.useProgram(progGlassBack.p);
+  bindGlassUniforms(progGlassBack, camera);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, envTex);
+  gl.uniform1i(progGlassBack.u.uEnvironment, 0);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.FRONT);
+  gl.bindVertexArray(prismVao);
+  gl.drawElements(gl.TRIANGLES, prismIndexCount, gl.UNSIGNED_SHORT, 0);
+  gl.disable(gl.CULL_FACE);
+
+  gl.blendFunc(gl.ONE, gl.ONE);                       // additive light
+  gl.useProgram(progLight.p);
+  gl.uniformMatrix4fv(progLight.u.uViewProjection, false, camera.viewProjection);
+  gl.uniform1f(progLight.u.uLightPlaneZ, PRISM_LIGHT_PLANE_Z);
+  gl.uniform1f(progLight.u.uEdgeFalloff, LIGHT_FADE.edgeFalloff);
+  gl.uniform1f(progLight.u.uOpacity, LIGHT_FADE.beamOpacity);
+  gl.uniform1f(progLight.u.uRainbowFalloffRate, LIGHT_FADE.rainbowFalloffRate);
+  gl.uniform1f(progLight.u.uRainbowFalloffPower, LIGHT_FADE.rainbowFalloffPower);
+  gl.uniform1f(progLight.u.uBeamWidthReveal, reveal.beamWidth);
+  gl.uniform1f(progLight.u.uSweep, reveal.sweep);
+  gl.bindVertexArray(lightVao);
+  gl.drawArrays(gl.TRIANGLES, 0, LIGHT_VERTEX_COUNT);
+  gl.disable(gl.BLEND);
+  resolveTarget(backgroundT);
+
+  // --- Scene HDR: copy background, then glass front interface ---
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneT.msaaFbo || sceneT.fbo);
+  gl.viewport(0, 0, sceneT.w, sceneT.h);
+  gl.useProgram(progCopy.p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, backgroundT.tex);
+  gl.uniform1i(progCopy.u.uSource, 0);
+  gl.bindVertexArray(emptyVao);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  gl.useProgram(progGlassFront.p);
+  bindGlassUniforms(progGlassFront, camera);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, envTex);
+  gl.uniform1i(progGlassFront.u.uEnvironment, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, backgroundT.tex);
+  gl.uniform1i(progGlassFront.u.uSceneTexture, 1);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+  gl.bindVertexArray(prismVao);
+  gl.drawElements(gl.TRIANGLES, prismIndexCount, gl.UNSIGNED_SHORT, 0);
+  gl.disable(gl.CULL_FACE);
+  gl.bindVertexArray(emptyVao);
+  resolveTarget(sceneT);
+
+  // --- Bloom pyramid ---
+  gl.bindFramebuffer(gl.FRAMEBUFFER, bloomT[0].v.fbo);
+  gl.viewport(0, 0, bloomT[0].v.w, bloomT[0].v.h);
+  gl.useProgram(progExtract.p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneT.tex);
+  gl.uniform1i(progExtract.u.uSource, 0);
+  gl.uniform1f(progExtract.u.uThreshold, BLOOM.threshold);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  const particleLevel = bloomT[3];
+  gl.bindFramebuffer(gl.FRAMEBUFFER, particleLevel.v.fbo);
+  gl.viewport(0, 0, particleLevel.v.w, particleLevel.v.h);
+  gl.useProgram(progParticleDown.p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneT.tex);
+  gl.uniform1i(progParticleDown.u.uSource, 0);
+  gl.uniform2f(progParticleDown.u.uSourceTexelSize, 1 / sceneT.w, 1 / sceneT.h);
+  gl.uniform2f(progParticleDown.u.uSourceToTargetScale, sceneT.w / particleLevel.v.w, sceneT.h / particleLevel.v.h);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  for (let level = 0; level < BLOOM_LEVELS; level++) {
+    const src = level === 0 || level === 3 ? bloomT[level].v.tex : bloomT[level - 1].v.tex;
+    blurPass(level, true, src);
+    blurPass(level, false, bloomT[level].h.tex);
+  }
+
+  // Composite visible levels into bloomT[0].h
+  gl.bindFramebuffer(gl.FRAMEBUFFER, bloomT[0].h.fbo);
+  gl.viewport(0, 0, bloomT[0].h.w, bloomT[0].h.h);
+  gl.useProgram(progComposite.p);
+  for (let i = 0; i < 3; i++) {
+    gl.activeTexture(gl.TEXTURE0 + i);
+    gl.bindTexture(gl.TEXTURE_2D, bloomT[i].v.tex);
+  }
+  gl.uniform1i(progComposite.u.uLevel0, 0);
+  gl.uniform1i(progComposite.u.uLevel1, 1);
+  gl.uniform1i(progComposite.u.uLevel2, 2);
+  gl.uniform1f(progComposite.u.uRadius, bloomSpread);
+  gl.uniform3fv(progComposite.u.uFactors, BLOOM_LEVEL_FACTORS);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // --- Present: scene + bloom -> ACES -> sRGB ---
+  gl.bindFramebuffer(gl.FRAMEBUFFER, presentT.fbo);
+  gl.viewport(0, 0, width, height);
+  gl.useProgram(progPresent.p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneT.tex);
+  gl.uniform1i(progPresent.u.uScene, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, bloomT[0].h.tex);
+  gl.uniform1i(progPresent.u.uBloom, 1);
+  gl.uniform1f(progPresent.u.uBloomStrength, BLOOM.strength);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // --- Canvas: reveal mix + dust ---
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, width, height);
+  gl.useProgram(progCopyReveal.p);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, presentT.tex);
+  gl.uniform1i(progCopyReveal.u.uSource, 0);
+  gl.uniform3f(progCopyReveal.u.uBackgroundColor, 0, 0, 0);
+  gl.uniform1f(progCopyReveal.u.uRevealProgress, reveal.opacity);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  homepageEl.style.opacity = reveal.homeOpacity;
+  homepageEl.classList.toggle('show', reveal.homeOpacity > 0.01);
+  canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.useProgram(progDust.p);
+  const wallExt = lightWallExtent(state.aspect);
+  gl.uniformMatrix4fv(progDust.u.uViewProjection, false, camera.viewProjection);
+  gl.uniform2f(progDust.u.uFieldHalfExtent, wallExt[0] / Math.min(2.5, Math.max(1, 1 / Math.max(state.aspect, 0.001))), wallExt[1] / Math.min(2.5, Math.max(1, 1 / Math.max(state.aspect, 0.001))));
+  gl.uniform2f(progDust.u.uOutputSize, width, height);
+  gl.uniform1f(progDust.u.uTime, Math.floor(30 * now) / 30);
+  gl.uniform1f(progDust.u.uCameraDistance, CAMERA_DISTANCE);
+  gl.uniform1f(progDust.u.uLightPlaneZ, PRISM_LIGHT_PLANE_Z);
+  gl.uniform2fv(progDust.u.uPrismA, TRI.a);
+  gl.uniform2fv(progDust.u.uPrismB, TRI.b);
+  gl.uniform2fv(progDust.u.uPrismC, TRI.c);
+  gl.uniform1f(progDust.u.uPrismFrontZ, PRISM_FRONT_Z);
+  gl.uniform1f(progDust.u.uRevealProgress, reveal.opacity);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, bloomT[1].v.tex);
+  gl.uniform1i(progDust.u.uColorTexture, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, bloomT[3].v.tex);
+  gl.uniform1i(progDust.u.uLightTexture, 1);
+  gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, DUST_COUNT);
+
+  // Faint ambient specks scattered through the surroundings.
+  gl.useProgram(progAmbient.p);
+  gl.uniformMatrix4fv(progAmbient.u.uViewProjection, false, camera.viewProjection);
+  gl.uniform2f(progAmbient.u.uFieldHalfExtent,
+    wallExt[0] / Math.min(2.5, Math.max(1, 1 / Math.max(state.aspect, 0.001))),
+    wallExt[1] / Math.min(2.5, Math.max(1, 1 / Math.max(state.aspect, 0.001))));
+  gl.uniform2f(progAmbient.u.uOutputSize, width, height);
+  gl.uniform1f(progAmbient.u.uTime, now);
+  gl.uniform1f(progAmbient.u.uLightPlaneZ, PRISM_LIGHT_PLANE_Z);
+  gl.uniform1f(progAmbient.u.uReveal, reveal.opacity);
+  gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, AMBIENT_COUNT);
+  gl.disable(gl.BLEND);
+}
+requestAnimationFrame(frame);
+</script>
+
+
+</body>
+</html>
