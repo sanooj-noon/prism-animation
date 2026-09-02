@@ -154,7 +154,7 @@ const BLOOM_LEVEL_FACTORS = [1, 0.8, 0.55];
 const BLOOM = { strength: 0.7, threshold: 0.1, radius: 0.25 };
 const ENV_SIZE = [1024, 512];
 const DUST_COUNT = 950;
-const AMBIENT_COUNT = 380;   // extra faint self-lit specks in the surroundings
+const AMBIENT_COUNT = 1000;  // extra faint self-lit specks in the surroundings
 
 // Equilateral triangle, circumradius 0.57/sqrt(3), apex up, centered at 0.
 const TRI = (() => {
@@ -1435,9 +1435,9 @@ void main() {
   float sPhase = hash11(id * 13.207 + 41.0);
   float sTwinkle = hash11(id * 17.881 + 53.0);
   // Scattered through the surrounding volume, drifting very slowly.
-  vec3 pos = vec3((sx * 2.0 - 1.0) * uFieldHalfExtent.x * 1.15,
-                  (sy * 2.0 - 1.0) * uFieldHalfExtent.y * 1.15,
-                  uLightPlaneZ + (sz - 0.5) * 0.5);
+  vec3 pos = vec3((sx * 2.0 - 1.0) * uFieldHalfExtent.x * 1.4,
+                  (sy * 2.0 - 1.0) * uFieldHalfExtent.y * 1.4,
+                  uLightPlaneZ + (sz - 0.5) * 0.65);
   pos += vec3(
     sin(uTime * mix(0.05, 0.12, sy) + sPhase * TAU) * 0.03,
     sin(uTime * mix(0.04, 0.10, sx) + sz * TAU) * 0.035,
@@ -1449,7 +1449,7 @@ void main() {
   gl_Position = vec4(projected.xy + clipOffset * projected.w, projected.z, projected.w);
   vPointCoord = corner;
   // Slow independent twinkle; most specks are barely-there.
-  float base = mix(0.015, 0.10, pow(sSize, 3.0));
+  float base = mix(0.02, 0.14, pow(sSize, 3.0));
   float tw = 0.6 + 0.4 * sin(uTime * mix(0.15, 0.5, sTwinkle) + sPhase * TAU);
   vBrightness = base * tw;
 }`;
