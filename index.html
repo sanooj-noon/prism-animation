@@ -1548,7 +1548,7 @@ void main() {
     // Realistic glass response:
     // 1. Highlight-weighted — reflections carry the bright parts of the
     //    scene; midtones thin out, darks disappear into the glass.
-    c = pow(c, vec3(1.7));
+    c = pow(c, vec3(1.15));
     // 2. Fresnel grading — faint at the face centers, stronger toward the
     //    silhouette edges where the glass reflects at grazing angles.
     vec2 cen = (uTriA + uTriB + uTriC) / 3.0;
