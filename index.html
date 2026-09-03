@@ -801,8 +801,8 @@ function heroRevealProgress(t) {
   // Order of beats: the prism ZOOMS IN and its glass fully covers the frame
   // (that happens only in the last quarter of the dive, charge ~0.75+); ONLY
   // THEN does the UI emerge through the glass, and the sheen dissolves last.
-  const homeOpacity = clamp((charge - 0.78) / 0.14, 0, 1);
-  const sceneFade = 1 - clamp((charge - 0.93) / 0.07, 0, 1);
+  const homeOpacity = clamp((charge - 0.8) / 0.14, 0, 1);
+  const sceneFade = 1 - clamp((charge - 0.84) / 0.14, 0, 1);
   // Beams dim late — they stay part of the zoom, only yielding right before
   // the glass swallows the frame (prevents point-blank bloom whiteout).
   const lightDim = 1 - 0.85 * clamp((charge - 0.68) / 0.22, 0, 1);
@@ -1715,6 +1715,8 @@ const homepageEl = document.getElementById('homepage');
     grid.appendChild(el);
   });
 }
+// Dev hook: seek the timeline to an exact second (window.__seek(3.2)).
+window.__seek = (t) => { state.startTime = performance.now() / 1000 - t; };
 function replay() {
   state.startTime = undefined;
   state.dispersionMix = -1;
@@ -1992,6 +1994,16 @@ function frame(nowMs) {
   gl.uniform1f(progCopyReveal.u.uRevealProgress, reveal.opacity);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   homepageEl.style.opacity = reveal.homeOpacity;
+  // Seen-through-glass focus: the UI arrives defocused and sharpens as the
+  // glass clears (a refraction read, not a white flash).
+  if (reveal.homeOpacity > 0 && reveal.homeOpacity < 1) {
+    const blur = 18 * (1 - reveal.homeOpacity);
+    homepageEl.style.filter = `blur(${blur.toFixed(1)}px)`;
+    homepageEl.style.transform = `scale(${(1.07 - 0.07 * reveal.homeOpacity).toFixed(4)})`;
+  } else {
+    homepageEl.style.filter = '';
+    homepageEl.style.transform = '';
+  }
   homepageEl.classList.toggle('show', reveal.homeOpacity > 0.01);
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
 
