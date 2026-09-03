@@ -123,7 +123,7 @@ const PRISM_SPECTRAL_SAMPLES = 128;
 const PRISM_BEAM_SLICES = 24;
 const PRISM_LIGHT_EXPOSURE = 88;
 const WAVELENGTH_MIN = 400, WAVELENGTH_MAX = 700;
-const DISPERSION = { base: 1.245, strength: 0.088 };   // "stylized" preset (settled state)
+const DISPERSION = { base: 1.245, strength: 0.06 };   // "stylized" preset (settled state)
 // Animated copy: the intro ramps `strength` from near zero (tight white exit
 // ray) up to the preset (full VIBGYOR fan). `base` is compensated so the
 // central 550nm ray keeps a constant IOR and the fan opens around it.
@@ -281,18 +281,7 @@ function wavelengthToBeamRgb(nm) {
   const f = idx - lo;
   const lum = ((CIE_Y[lo] * (1 - f) + CIE_Y[lo + 1] * f) / 100) * Y / 1.0347;
   const gain = (1 - Math.exp(-4.5 * lum)) / (1 - Math.exp(-4.5));
-  // Short-wavelength lift: the photopic gain crushes violet to near-black,
-  // collapsing the fan's end into one flat blue. Cameras (and the reference)
-  // keep indigo/violet visible, so lift 400-480nm progressively — the violet
-  // keeps its red-tinged hue from the CIE X lobe, now bright enough to read.
-  // Taper the extreme short-wavelength tail to nothing so the fan ends in a
-  // soft violet fade instead of a detached stray blue line at the edge.
-  const tRaw = clamp((w - 405) / 35, 0, 1);
-  const tailFade = tRaw * tRaw * (3 - 2 * tRaw);
-  const violetBoost = (w < 480 ? 1 + 2.2 * Math.pow((480 - w) / 80, 1.15) : 1) * tailFade;
-  return [pos[0] / mx * gain * 1.1868 * violetBoost,
-          pos[1] / mx * gain * violetBoost,
-          pos[2] / mx * gain * 1.65 * violetBoost];
+  return [pos[0] / mx * gain * 1.1868, pos[1] / mx * gain, pos[2] / mx * gain * 2.2495];
 }
 const SPECTRAL_LUT = Array.from({ length: PRISM_SPECTRAL_SAMPLES }, (_, i) => {
   const wl = WAVELENGTH_MIN + (WAVELENGTH_MAX - WAVELENGTH_MIN) * i / (PRISM_SPECTRAL_SAMPLES - 1);
@@ -525,14 +514,7 @@ function buildLightMesh(light, wallHalfExtent, out) {
     const tip = (p) => add2(p.origin, mul2(p.direction, 1));
     const width = Math.abs(cross2(sub2(tip(b), tip(a)), mean));
     const span = (hi - lo) / (bands.length - 1);
-    // Feather the fan's angular edges: a gentle roll-off at the red side and
-    // a broad fade on the blue/violet side, so the fan's underside dissolves
-    // into black instead of ending as a hard bright blue line.
-    const eK = e / (bands.length - 1);
-    const redEdge = Math.min(1, (1 - eK) / 0.10);
-    const blueEdge = Math.min(1, eK / 0.30);
-    const edgeFeather = (redEdge * redEdge * (3 - 2 * redEdge)) * (blueEdge * blueEdge * (3 - 2 * blueEdge));
-    return edgeFeather * exposure * beamWidthTotal * weights[sl] * band.paths[sl].transmission
+    return exposure * beamWidthTotal * weights[sl] * band.paths[sl].transmission
       / Math.max(width / span, 1e-4);
   }));
 
@@ -1525,43 +1507,12 @@ precision highp float;
 in vec2 vUv;
 uniform sampler2D uTex;
 uniform float uEmit;
-uniform float uClipTri;    // 1 = show only inside the prism's silhouette
-uniform vec2 uTriA;
-uniform vec2 uTriB;
-uniform vec2 uTriC;
-uniform vec2 uRes;
 out vec4 fragColor;
-float edgeSide(vec2 s, vec2 e, vec2 p) {
-  return (e.x - s.x) * (p.y - s.y) - (e.y - s.y) * (p.x - s.x);
-}
 void main() {
-  float emit = uEmit;
   vec3 c = texture(uTex, vUv).rgb;
-  if (uClipTri > 0.5) {
-    vec2 f = gl_FragCoord.xy / max(uRes, vec2(1.0));
-    float sa = edgeSide(uTriA, uTriB, f);
-    float sb = edgeSide(uTriB, uTriC, f);
-    float sc = edgeSide(uTriC, uTriA, f);
-    bool hasNeg = sa < 0.0 || sb < 0.0 || sc < 0.0;
-    bool hasPos = sa > 0.0 || sb > 0.0 || sc > 0.0;
-    if (hasNeg && hasPos) discard;   // outside the glass silhouette
-    // Realistic glass response:
-    // 1. Highlight-weighted — reflections carry the bright parts of the
-    //    scene; midtones thin out, darks disappear into the glass.
-    c = pow(c, vec3(1.15));
-    // 2. Fresnel grading — faint at the face centers, stronger toward the
-    //    silhouette edges where the glass reflects at grazing angles.
-    vec2 cen = (uTriA + uTriB + uTriC) / 3.0;
-    float triScale = max(distance(uTriA, cen), max(distance(uTriB, cen), distance(uTriC, cen)));
-    float rr = clamp(distance(f, cen) / max(triScale, 1e-4), 0.0, 1.0);
-    emit *= 0.65 + 0.85 * rr * rr;
-    // 3. Soft feather at the very rim so the reflection never cuts hard.
-    float minSide = min(abs(sa), min(abs(sb), abs(sc))) / max(triScale, 1e-4);
-    emit *= clamp(minSide / 0.03, 0.0, 1.0);
-  }
   // sRGB-ish to linear so the ACES pass returns it faithfully
   c = c * c * (vec3(1.0) + 0.2 * (vec3(1.0) - c));
-  fragColor = vec4(c * emit, emit);   // premultiplied
+  fragColor = vec4(c * uEmit, uEmit);   // premultiplied
 }`;
 
 // ---------------------------------------------------------------------------
@@ -1951,14 +1902,8 @@ function frame(nowMs) {
     // incidence angle shifts, so the refraction and the fan's exit direction
     // genuinely change (re-traced through the glass). Rebuilds are thresholded
     // so they land only every few frames and never cause hitches.
-    // Physical coupling: the beam's angle of incidence tracks the prism's
-    // actual rotation angle (1 deg of turn -> 0.45 deg of incidence change,
-    // uncapped), so the internal refraction and the fan re-solve through
-    // Snell/Fresnel continuously while the prism turns.
-    const orbitDeg = state.orbit[0] * CAMERA_ORBIT_DEGREES;
-    const incidenceDeg = 60 - 0.45 * orbitDeg;
-    const arcT = clamp((incidenceDeg + 35) / 190, 0.08, 0.92);
-    const aimTarget = [arcT, 0.5 + 0.04 * Math.min(state.orbit[0], 1)];
+    const aimYaw = Math.min(state.orbit[0], 1);
+    const aimTarget = [0.5 + 0.06 * aimYaw, 0.5 + 0.04 * aimYaw];
     const dist = Math.hypot(aimTarget[0] - state.aim[0], aimTarget[1] - state.aim[1]);
     if (dist > 0.0008) {
       state.aim[0] += (aimTarget[0] - state.aim[0]) * LAMP_AIM_LERP;
@@ -2019,22 +1964,17 @@ function frame(nowMs) {
     gl.bindTexture(gl.TEXTURE_2D, uiTex);
     gl.uniform1i(progUiPlane.u.uTex, 0);
     gl.bindVertexArray(emptyVao);
-    const drawPlaneRU = (center, r, u2, emit, clipTri = 0) => {
-      if (emit <= 0.002) return;
-      gl.uniform1f(progUiPlane.u.uClipTri, clipTri);
-      gl.uniform3f(progUiPlane.u.uCenter, center[0], center[1], center[2]);
-      gl.uniform3f(progUiPlane.u.uRight, r[0], r[1], r[2]);
-      gl.uniform3f(progUiPlane.u.uUp, u2[0], u2[1], u2[2]);
-      gl.uniform1f(progUiPlane.u.uEmit, emit);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    };
     const drawPlane = (center, tilt, halfW, emit) => {
+      if (emit <= 0.002) return;
       const cT = Math.cos(tilt), sT = Math.sin(tilt);
       const r = [right[0] * cT + up[0] * sT, right[1] * cT + up[1] * sT, right[2] * cT + up[2] * sT];
       const u2 = [up[0] * cT - right[0] * sT, up[1] * cT - right[1] * sT, up[2] * cT - right[2] * sT];
       const halfH = halfW * 0.60;
-      drawPlaneRU(center, [r[0] * halfW, r[1] * halfW, r[2] * halfW],
-                  [u2[0] * halfH, u2[1] * halfH, u2[2] * halfH], emit);
+      gl.uniform3f(progUiPlane.u.uCenter, center[0], center[1], center[2]);
+      gl.uniform3f(progUiPlane.u.uRight, r[0] * halfW, r[1] * halfW, r[2] * halfW);
+      gl.uniform3f(progUiPlane.u.uUp, u2[0] * halfH, u2[1] * halfH, u2[2] * halfH);
+      gl.uniform1f(progUiPlane.u.uEmit, emit);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
     };
     const band = (a, b, c, d) => {
       const chg = reveal.charge;
@@ -2042,6 +1982,17 @@ function frame(nowMs) {
       const outS = clamp((chg - c) / Math.max(d - c, 1e-4), 0, 1);
       return (inS * inS * (3 - 2 * inS)) * (1 - outS * outS * (3 - 2 * outS));
     };
+    // Peripheral glimpses: faint UI shards gliding past the frame's sides
+    // during the zoom — a suggestion of what's coming. Each has its own
+    // in/out window, offset and tilt, so they pass one after another.
+    const off = (ox, oy, oz) => [
+      right[0] * ox + up[0] * oy + fw[0] * oz,
+      right[1] * ox + up[1] * oy + fw[1] * oz + 0,
+      right[2] * ox + up[2] * oy + fw[2] * oz + prismMidZ,
+    ];
+    drawPlane(off(-0.38, 0.10, -0.05), 0.28, 0.13, 0.32 * band(0.10, 0.28, 0.45, 0.62));
+    drawPlane(off(0.40, -0.14, 0.08), -0.22, 0.15, 0.30 * band(0.22, 0.40, 0.58, 0.74));
+    drawPlane(off(-0.30, -0.24, 0.16), 0.14, 0.11, 0.28 * band(0.34, 0.52, 0.68, 0.84));
     // The main page at the prism's core
     drawPlane([0, 0, prismMidZ], 0, 0.30, uiEmit * (0.85 + 0.35 * reveal.charge));
   }
@@ -2084,68 +2035,6 @@ function frame(nowMs) {
   gl.bindVertexArray(prismVao);
   gl.drawElements(gl.TRIANGLES, prismIndexCount, gl.UNSIGNED_SHORT, 0);
   gl.disable(gl.CULL_FACE);
-
-  // Mirror reflections of the UI, visible only WITHIN the prism's glass:
-  // the page mirrored across each side-face plane, clipped to the prism's
-  // screen silhouette and layered over the glass shading.
-  {
-    const preT = clamp((elapsed - 2.2) / 0.8, 0, 1);
-    const preS = preT * preT * (3 - 2 * preT);
-    const chg = reveal.charge;
-    const bandIn = clamp((chg - 0.02) / 0.26, 0, 1);
-    const bandOut = clamp((chg - 0.62) / 0.2, 0, 1);
-    const mirrorEmit = (0.30 * preS + 0.25 * (bandIn * bandIn * (3 - 2 * bandIn)))
-                     * (1 - bandOut * bandOut * (3 - 2 * bandOut)) * reveal.fadeOut;
-    if (uiTexReady && mirrorEmit > 0.004) {
-      const m = camera.viewProjection;
-      const proj2 = (p) => {
-        const w = Math.max(1e-5, m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15]);
-        return [((m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / w) * 0.5 + 0.5,
-                ((m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w) * 0.5 + 0.5];
-      };
-      const tA = proj2([TRI.a[0], TRI.a[1], PRISM_FRONT_Z]);
-      const tB = proj2([TRI.b[0], TRI.b[1], PRISM_FRONT_Z]);
-      const tC = proj2([TRI.c[0], TRI.c[1], PRISM_FRONT_Z]);
-      const fw = norm3([-camera.position[0], -camera.position[1], prismMidZ - camera.position[2]]);
-      const right = norm3(cross3(fw, [0, 1, 0]));
-      const up = cross3(right, fw);
-      const halfW = 0.30, halfH = 0.18;
-      const baseR = [right[0] * halfW, right[1] * halfW, right[2] * halfW];
-      const baseU = [up[0] * halfH, up[1] * halfH, up[2] * halfH];
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      gl.useProgram(progUiPlane.p);
-      gl.uniformMatrix4fv(progUiPlane.u.uViewProjection, false, camera.viewProjection);
-      gl.uniform1f(progUiPlane.u.uClipTri, 1);
-      gl.uniform2f(progUiPlane.u.uTriA, tA[0], tA[1]);
-      gl.uniform2f(progUiPlane.u.uTriB, tB[0], tB[1]);
-      gl.uniform2f(progUiPlane.u.uTriC, tC[0], tC[1]);
-      gl.uniform2f(progUiPlane.u.uRes, sceneT.w, sceneT.h);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, uiTex);
-      gl.uniform1i(progUiPlane.u.uTex, 0);
-      gl.bindVertexArray(emptyVao);
-      for (const plane of PLANES.slice(0, 3)) {
-        const n = [plane[0], plane[1], plane[2]], d = plane[3];
-        const refP = (p) => {
-          const k = 2 * (p[0] * n[0] + p[1] * n[1] + p[2] * n[2] - d);
-          return [p[0] - k * n[0], p[1] - k * n[1], p[2] - k * n[2]];
-        };
-        const refV = (v) => {
-          const k = 2 * (v[0] * n[0] + v[1] * n[1] + v[2] * n[2]);
-          return [v[0] - k * n[0], v[1] - k * n[1], v[2] - k * n[2]];
-        };
-        const c0 = refP([0, 0, prismMidZ]);
-        const r0 = refV(baseR), u0 = refV(baseU);
-        gl.uniform3f(progUiPlane.u.uCenter, c0[0], c0[1], c0[2]);
-        gl.uniform3f(progUiPlane.u.uRight, r0[0], r0[1], r0[2]);
-        gl.uniform3f(progUiPlane.u.uUp, u0[0], u0[1], u0[2]);
-        gl.uniform1f(progUiPlane.u.uEmit, mirrorEmit);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-      }
-      gl.disable(gl.BLEND);
-    }
-  }
   gl.bindVertexArray(emptyVao);
   resolveTarget(sceneT);
 
