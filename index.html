@@ -2046,8 +2046,9 @@ function frame(nowMs) {
   // glass swallows the view, handing to the DOM seamlessly.
   {
     const chg = reveal.charge;
-    const inS = clamp(chg / 0.35, 0, 1);
-    const lensEmit = (0.15 + 0.8 * (inS * inS * (3 - 2 * inS))) * (chg > 0.005 ? 1 : 0)
+    // Late arrival: the lens wakes well into the zoom.
+    const inS = clamp((chg - 0.45) / 0.3, 0, 1);
+    const lensEmit = (0.9 * (inS * inS * (3 - 2 * inS)))
                    * (1 - (state.uiHandoff || 0)) * reveal.fadeOut;
     if (uiTexReady && lensEmit > 0.004) {
       const m = camera.viewProjection;
@@ -2077,7 +2078,7 @@ function frame(nowMs) {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, uiTex);
       gl.uniform1i(progUiPlane.u.uTex, 0);
-      gl.uniform3f(progUiPlane.u.uCenter, 0, 0, prismMidZ);
+      gl.uniform3f(progUiPlane.u.uCenter, right[0] * 0.14, right[1] * 0.14, prismMidZ + right[2] * 0.14);
       gl.uniform3f(progUiPlane.u.uRight, right[0] * halfW, right[1] * halfW, right[2] * halfW);
       gl.uniform3f(progUiPlane.u.uUp, up[0] * halfH, up[1] * halfH, up[2] * halfH);
       gl.uniform1f(progUiPlane.u.uEmit, lensEmit);
@@ -2158,15 +2159,35 @@ function frame(nowMs) {
   // through the glass (the in-scene UI plane has already filled the frame),
   // so the swap is invisible.
   {
-    // Hand off while the in-scene page still frames like the real one, and
-    // trigger the staggered nav/heading/cards entrance.
-    const h = clamp((reveal.charge - 0.8) / 0.1, 0, 1);
-    const hs = h * h * (3 - 2 * h);
-    homepageEl.style.opacity = reveal.fadeOut * hs;
-    homepageEl.classList.toggle('show', hs > 0.02 && reveal.fadeOut > 0.5);
-    homepageEl.style.clipPath = '';
-    homepageEl.style.filter = '';
-    state.uiHandoff = hs;
+    // The page is revealed THROUGH the prism's shape: clipped to the
+    // projected triangle, which expands past the frame as the camera passes
+    // through — a shape-wipe, not a fade.
+    const h = clamp((reveal.charge - 0.7) / 0.25, 0, 1);
+    state.uiHandoff = h * h * (3 - 2 * h);
+    if (h > 0.001 && reveal.fadeOut > 0.01) {
+      const m = camera.viewProjection;
+      const corners = [
+        [TRI.a[0], TRI.a[1], PRISM_FRONT_Z],
+        [TRI.b[0], TRI.b[1], PRISM_FRONT_Z],
+        [TRI.c[0], TRI.c[1], PRISM_FRONT_Z],
+      ];
+      let behind = false;
+      const pts = corners.map((p) => {
+        const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+        if (w < 0.02) behind = true;
+        const x = (m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / Math.max(w, 1e-5);
+        const y = (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / Math.max(w, 1e-5);
+        return `${((x * 0.5 + 0.5) * 100).toFixed(2)}% ${((0.5 - y * 0.5) * 100).toFixed(2)}%`;
+      });
+      homepageEl.style.opacity = reveal.fadeOut;
+      homepageEl.style.clipPath = behind ? '' : `polygon(${pts.join(', ')})`;
+      homepageEl.classList.toggle('show', reveal.fadeOut > 0.5);
+      homepageEl.style.filter = '';
+    } else {
+      homepageEl.style.opacity = 0;
+      homepageEl.style.clipPath = '';
+      homepageEl.classList.toggle('show', false);
+    }
   }
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
 
