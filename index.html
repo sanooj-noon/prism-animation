@@ -786,17 +786,25 @@ function heroRevealProgress(t) {
   // while the UI cascades in over it.
   // Both phases are smooth (zero-slope at their ends) and overlap slightly,
   // so the velocity curve is continuous — no kink where the charge begins.
+  // Forward creep from the first frame, blending into the dive — both phases
+  // zero-slope at their ends so the velocity curve never kinks.
   const c = clamp(t / 2.6, 0, 1);
-  const creep = 0.06 * c * c * (3 - 2 * c);
-  // Ease-in-heavy: smoothstep over q^2 — a long, gentle wind-up that gathers
-  // speed late and still settles to a soft stop.
-  const q = clamp((t - 2.4) / 1.7, 0, 1);
+  const creep = 0.05 * c * c * (3 - 2 * c);
+  // The dive: quintic-over-q^2 — long gentle wind-up, gathers speed as the
+  // prism looms, decelerates softly as the eye settles inside the glass.
+  const q = clamp((t - 2.4) / 2.0, 0, 1);
   const u = q * q;
   const charge = u * u * (3 - 2 * u);
-  const approach = creep + (1 - 0.06) * charge;
+  const approach = creep + (1 - 0.05) * charge;
   const charging = q > 0;
-  const homeOpacity = clamp((t - 3.1) / 0.3, 0, 1);
-  const sceneFade = 1 - clamp((t - 3.5) / 0.9, 0, 1);
+  // UI emerges through the glass as the camera crosses the front face
+  // (approach ~0.75 is where the prism dominates the frame).
+  const homeOpacity = clamp((charge - 0.55) / 0.3, 0, 1);
+  // The beam scene dissolves as the eye passes through — glass sheen last.
+  const sceneFade = 1 - clamp((charge - 0.8) / 0.18, 0, 1);
+  // Beams dim as the eye closes in on the light sheet — otherwise point-blank
+  // bloom whites out the frame right at the glass entry.
+  const lightDim = 1 - 0.85 * clamp((charge - 0.5) / 0.3, 0, 1);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
   const fadeOut = 1 - k * k * (3 - 2 * k);
@@ -807,15 +815,19 @@ function heroRevealProgress(t) {
     dispersion,
     approach,
     sceneFade,
+    lightDim,
     charging,
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 6.8;    // homepage holds until here
+const LOOP_FADE_START = 5.8;    // UI fully in ~4.6s, holds ~1.2s, then fades
 const LOOP_FADE_DURATION = 0.7; // fade-to-black length
 const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.4; // + beat of black
 // World point the camera flies toward: on the light plane, out along the fan.
-const ZOOM_OUT_DISTANCE = 3.4;    // how far the camera charges back from the prism
+// The camera charges FORWARD, entering the glass and passing through it:
+// final distance puts the eye inside the prism (front face at ~0.126), so the
+// glass swallows the frame and the UI appears through it (screen blend).
+const DIVE_END_DISTANCE = 0.02;
 
 // ---------------------------------------------------------------------------
 // GLSL
@@ -1838,7 +1850,7 @@ function frame(nowMs) {
   const reveal = heroRevealProgress(elapsed);
   // Camera pull-back: stay centered on the prism and charge backward.
   const ap = reveal.approach;
-  const camDistance = CAMERA_DISTANCE + (ZOOM_OUT_DISTANCE - CAMERA_DISTANCE) * ap;
+  const camDistance = CAMERA_DISTANCE + (DIVE_END_DISTANCE - CAMERA_DISTANCE) * ap;
   const camera = cameraView(state.aspect, state.orbit[0], state.orbit[1], [0, 0, 0], camDistance);
 
   // Coarse threshold: dispersion rebuilds land every few frames instead of
@@ -1877,7 +1889,7 @@ function frame(nowMs) {
   gl.uniformMatrix4fv(progLight.u.uViewProjection, false, camera.viewProjection);
   gl.uniform1f(progLight.u.uLightPlaneZ, PRISM_LIGHT_PLANE_Z);
   gl.uniform1f(progLight.u.uEdgeFalloff, LIGHT_FADE.edgeFalloff);
-  gl.uniform1f(progLight.u.uOpacity, LIGHT_FADE.beamOpacity);
+  gl.uniform1f(progLight.u.uOpacity, LIGHT_FADE.beamOpacity * reveal.lightDim);
   gl.uniform1f(progLight.u.uRainbowFalloffRate, LIGHT_FADE.rainbowFalloffRate);
   gl.uniform1f(progLight.u.uRainbowFalloffPower, LIGHT_FADE.rainbowFalloffPower);
   gl.uniform1f(progLight.u.uBeamWidthReveal, reveal.beamWidth);
