@@ -285,10 +285,10 @@ function wavelengthToBeamRgb(nm) {
   // collapsing the fan's end into one flat blue. Cameras (and the reference)
   // keep indigo/violet visible, so lift 400-480nm progressively — the violet
   // keeps its red-tinged hue from the CIE X lobe, now bright enough to read.
-  const violetBoost = w < 480 ? 1 + 1.6 * Math.pow((480 - w) / 80, 1.25) : 1;
+  const violetBoost = w < 480 ? 1 + 2.2 * Math.pow((480 - w) / 80, 1.15) : 1;
   return [pos[0] / mx * gain * 1.1868 * violetBoost,
           pos[1] / mx * gain * violetBoost,
-          pos[2] / mx * gain * 2.2495 * violetBoost];
+          pos[2] / mx * gain * 1.65 * violetBoost];
 }
 const SPECTRAL_LUT = Array.from({ length: PRISM_SPECTRAL_SAMPLES }, (_, i) => {
   const wl = WAVELENGTH_MIN + (WAVELENGTH_MAX - WAVELENGTH_MIN) * i / (PRISM_SPECTRAL_SAMPLES - 1);
