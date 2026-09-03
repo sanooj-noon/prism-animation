@@ -2006,17 +2006,6 @@ function frame(nowMs) {
       const outS = clamp((chg - c) / Math.max(d - c, 1e-4), 0, 1);
       return (inS * inS * (3 - 2 * inS)) * (1 - outS * outS * (3 - 2 * outS));
     };
-    // Peripheral glimpses: faint UI shards gliding past the frame's sides
-    // during the zoom — a suggestion of what's coming. Each has its own
-    // in/out window, offset and tilt, so they pass one after another.
-    const off = (ox, oy, oz) => [
-      right[0] * ox + up[0] * oy + fw[0] * oz,
-      right[1] * ox + up[1] * oy + fw[1] * oz + 0,
-      right[2] * ox + up[2] * oy + fw[2] * oz + prismMidZ,
-    ];
-    drawPlane(off(-0.38, 0.10, -0.05), 0.28, 0.13, 0.32 * band(0.10, 0.28, 0.45, 0.62));
-    drawPlane(off(0.40, -0.14, 0.08), -0.22, 0.15, 0.30 * band(0.22, 0.40, 0.58, 0.74));
-    drawPlane(off(-0.30, -0.24, 0.16), 0.14, 0.11, 0.28 * band(0.34, 0.52, 0.68, 0.84));
     // The main page at the prism's core
     drawPlane([0, 0, prismMidZ], 0, 0.30, uiEmit * (0.85 + 0.35 * reveal.charge));
   }
