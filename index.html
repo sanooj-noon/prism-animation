@@ -1545,13 +1545,13 @@ void main() {
     bool hasNeg = sa < 0.0 || sb < 0.0 || sc < 0.0;
     bool hasPos = sa > 0.0 || sb > 0.0 || sc > 0.0;
     if (hasNeg && hasPos) discard;   // outside the glass silhouette
-    // Glassy reflection response: highlight-weighted, Fresnel-graded toward
-    // the silhouette edges, feathered at the rim.
-    c = pow(c, vec3(1.35));
+    // Magnifier-lens response: the page reads clearly through the glass,
+    // with a gentle brightening toward the lens edge and a feathered rim.
+    c = pow(c, vec3(1.05));
     vec2 cen = (uTriA + uTriB + uTriC) / 3.0;
     float triScale = max(distance(uTriA, cen), max(distance(uTriB, cen), distance(uTriC, cen)));
     float rr = clamp(distance(f, cen) / max(triScale, 1e-4), 0.0, 1.0);
-    emit *= 0.5 + 0.9 * rr * rr;
+    emit *= 0.82 + 0.30 * rr * rr;
     float minSide = min(abs(sa), min(abs(sb), abs(sc))) / max(triScale, 1e-4);
     emit *= clamp(minSide / 0.03, 0.0, 1.0);
   }
@@ -2040,17 +2040,16 @@ function frame(nowMs) {
   gl.drawElements(gl.TRIANGLES, prismIndexCount, gl.UNSIGNED_SHORT, 0);
   gl.disable(gl.CULL_FACE);
 
-  // Slight UI reflection held inside the prism's glass: the page mirrored
-  // across the side-face planes, clipped to the silhouette, highlight-
-  // weighted and Fresnel-graded. Appears as the spectrum settles, yields
-  // before the pass-through.
+  // Magnifier lens: during the zoom the UI appears UPRIGHT through the
+  // prism's shape only — like looking at the page through a magnifying
+  // glass. Invisible outside the silhouette; grows to full frame as the
+  // glass swallows the view, handing to the DOM seamlessly.
   {
-    const preT = clamp((elapsed - 2.6) / 0.9, 0, 1);
-    const preS = preT * preT * (3 - 2 * preT);
     const chg = reveal.charge;
-    const outB = clamp((chg - 0.6) / 0.2, 0, 1);
-    const mirrorEmit = 0.4 * preS * (1 - outB * outB * (3 - 2 * outB)) * reveal.fadeOut;
-    if (uiTexReady && mirrorEmit > 0.004) {
+    const inS = clamp(chg / 0.35, 0, 1);
+    const lensEmit = (0.15 + 0.8 * (inS * inS * (3 - 2 * inS))) * (chg > 0.005 ? 1 : 0)
+                   * (1 - (state.uiHandoff || 0)) * reveal.fadeOut;
+    if (uiTexReady && lensEmit > 0.004) {
       const m = camera.viewProjection;
       const proj2 = (p) => {
         const w = Math.max(1e-5, m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15]);
@@ -2063,9 +2062,9 @@ function frame(nowMs) {
       const fw = norm3([-camera.position[0], -camera.position[1], prismMidZ - camera.position[2]]);
       const right = norm3(cross3(fw, [0, 1, 0]));
       const up = cross3(right, fw);
-      const halfW = 0.30, halfH = 0.18;
-      const baseR = [right[0] * halfW, right[1] * halfW, right[2] * halfW];
-      const baseU = [up[0] * halfH, up[1] * halfH, up[2] * halfH];
+      // Lens magnification: the page plane is larger than the frame's view of
+      // it, so the prism shows a magnified crop that resolves as we近 in.
+      const halfW = 0.42, halfH = 0.25;
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.useProgram(progUiPlane.p);
@@ -2078,22 +2077,12 @@ function frame(nowMs) {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, uiTex);
       gl.uniform1i(progUiPlane.u.uTex, 0);
+      gl.uniform3f(progUiPlane.u.uCenter, 0, 0, prismMidZ);
+      gl.uniform3f(progUiPlane.u.uRight, right[0] * halfW, right[1] * halfW, right[2] * halfW);
+      gl.uniform3f(progUiPlane.u.uUp, up[0] * halfH, up[1] * halfH, up[2] * halfH);
+      gl.uniform1f(progUiPlane.u.uEmit, lensEmit);
       gl.bindVertexArray(emptyVao);
-      for (const plane of PLANES.slice(0, 3)) {
-        const n = [plane[0], plane[1], plane[2]], d = plane[3];
-        const k0 = 2 * (0 * n[0] + 0 * n[1] + prismMidZ * n[2] - d);
-        const c0 = [-k0 * n[0], -k0 * n[1], prismMidZ - k0 * n[2]];
-        const refV = (v) => {
-          const k = 2 * (v[0] * n[0] + v[1] * n[1] + v[2] * n[2]);
-          return [v[0] - k * n[0], v[1] - k * n[1], v[2] - k * n[2]];
-        };
-        const r0 = refV(baseR), u0 = refV(baseU);
-        gl.uniform3f(progUiPlane.u.uCenter, c0[0], c0[1], c0[2]);
-        gl.uniform3f(progUiPlane.u.uRight, r0[0], r0[1], r0[2]);
-        gl.uniform3f(progUiPlane.u.uUp, u0[0], u0[1], u0[2]);
-        gl.uniform1f(progUiPlane.u.uEmit, mirrorEmit);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-      }
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
       gl.disable(gl.BLEND);
     }
   }
