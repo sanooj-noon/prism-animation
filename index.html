@@ -729,7 +729,7 @@ function mat4Mul(a, b) {
   return out;
 }
 function cameraView(aspect, orbitX = 0, orbitY = 0, target = [0, 0, 0], distance = CAMERA_DISTANCE) {
-  const yaw = rad(clamp(orbitX, -1, 1) * CAMERA_ORBIT_DEGREES);
+  const yaw = rad(clamp(orbitX, -1, 4.2) * CAMERA_ORBIT_DEGREES);
   const pitch = rad(-clamp(orbitY, -1, 1) * CAMERA_ORBIT_DEGREES);
   const cp = Math.cos(pitch);
   const pos = [
@@ -1837,14 +1837,22 @@ function frame(nowMs) {
     // constant-rate yaw drift (a sine stalls at its peak, which read as the
     // rotation stopping), with a whisper of pitch breath on top.
     const yaw = (elapsed / 4.7) * 1.45;   // 0 -> +20deg, constant rate, no start lurch
-    state.orbitGoal = [Math.min(yaw, 1), 0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
+    // During the dive the rotation CONTINUES and accelerates: the prism swings
+    // around to present its side, and the camera passes through the side face
+    // (~+80deg total by entry). Quintic, so the swing blends seamlessly out of
+    // the idle drift.
+    const dq = clamp((elapsed - 3.4) / 2.0, 0, 1);
+    const diveSwing = dq * dq * dq * (dq * (dq * 6 - 15) + 10);
+    state.orbitGoal = [Math.min(yaw, 1) + 3.0 * diveSwing,
+                       0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
     lerpToward(state.orbit, state.orbitGoal, CAMERA_ORBIT_LERP);
 
     // The optics respond to the rotation: as the prism turns, the beam's
     // incidence angle shifts, so the refraction and the fan's exit direction
     // genuinely change (re-traced through the glass). Rebuilds are thresholded
     // so they land only every few frames and never cause hitches.
-    const aimTarget = [0.5 + 0.06 * state.orbit[0], 0.5 + 0.04 * state.orbit[0]];
+    const aimYaw = Math.min(state.orbit[0], 1);
+    const aimTarget = [0.5 + 0.06 * aimYaw, 0.5 + 0.04 * aimYaw];
     const dist = Math.hypot(aimTarget[0] - state.aim[0], aimTarget[1] - state.aim[1]);
     if (dist > 0.0008) {
       state.aim[0] += (aimTarget[0] - state.aim[0]) * LAMP_AIM_LERP;
