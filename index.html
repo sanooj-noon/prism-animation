@@ -2020,8 +2020,8 @@ function frame(nowMs) {
       // slightly through the dive and yields before the pass-through.
       const preT = clamp((elapsed - 2.9) / 0.9, 0, 1);
       const preS = preT * preT * (3 - 2 * preT);
-      const mirrorEmit = 0.09 * preS * (1 - clamp((reveal.charge - 0.62) / 0.2, 0, 1))
-                       + 0.16 * band(0.02, 0.28, 0.62, 0.82);
+      const mirrorEmit = 0.26 * preS * (1 - clamp((reveal.charge - 0.62) / 0.2, 0, 1))
+                       + 0.42 * band(0.02, 0.28, 0.62, 0.82);
       if (mirrorEmit > 0.002) {
         const halfW = 0.30, halfH = halfW * 0.60;
         const baseR = [right[0] * halfW, right[1] * halfW, right[2] * halfW];
