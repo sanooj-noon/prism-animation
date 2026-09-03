@@ -285,7 +285,11 @@ function wavelengthToBeamRgb(nm) {
   // collapsing the fan's end into one flat blue. Cameras (and the reference)
   // keep indigo/violet visible, so lift 400-480nm progressively — the violet
   // keeps its red-tinged hue from the CIE X lobe, now bright enough to read.
-  const violetBoost = w < 480 ? 1 + 2.2 * Math.pow((480 - w) / 80, 1.15) : 1;
+  // Taper the extreme short-wavelength tail to nothing so the fan ends in a
+  // soft violet fade instead of a detached stray blue line at the edge.
+  const tRaw = clamp((w - 405) / 35, 0, 1);
+  const tailFade = tRaw * tRaw * (3 - 2 * tRaw);
+  const violetBoost = (w < 480 ? 1 + 2.2 * Math.pow((480 - w) / 80, 1.15) : 1) * tailFade;
   return [pos[0] / mx * gain * 1.1868 * violetBoost,
           pos[1] / mx * gain * violetBoost,
           pos[2] / mx * gain * 1.65 * violetBoost];
