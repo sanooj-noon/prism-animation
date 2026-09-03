@@ -1953,23 +1953,48 @@ function frame(nowMs) {
   // UI plane inside the glass: it materializes at the prism's core during
   // the dive and is REFRACTED by the front interface like everything else.
   const uiEmit = (uiTexReady ? clamp((reveal.charge - 0.12) / 0.5, 0, 1) : 0) * (1 - (state.uiHandoff || 0));
-  if (uiEmit > 0.001) {
+  if (uiTexReady && (uiEmit > 0.001 || reveal.charge > 0.05)) {
     const fw = norm3([-camera.position[0], -camera.position[1], prismMidZ - camera.position[2]]);
     const right = norm3(cross3(fw, [0, 1, 0]));
     const up = cross3(right, fw);
-    const halfW = 0.30, halfH = halfW * 0.60;
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.useProgram(progUiPlane.p);
     gl.uniformMatrix4fv(progUiPlane.u.uViewProjection, false, camera.viewProjection);
-    gl.uniform3f(progUiPlane.u.uCenter, 0, 0, prismMidZ);
-    gl.uniform3f(progUiPlane.u.uRight, right[0] * halfW, right[1] * halfW, right[2] * halfW);
-    gl.uniform3f(progUiPlane.u.uUp, up[0] * halfH, up[1] * halfH, up[2] * halfH);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, uiTex);
     gl.uniform1i(progUiPlane.u.uTex, 0);
-    gl.uniform1f(progUiPlane.u.uEmit, uiEmit * (0.85 + 0.35 * reveal.charge));
     gl.bindVertexArray(emptyVao);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    const drawPlane = (center, tilt, halfW, emit) => {
+      if (emit <= 0.002) return;
+      const cT = Math.cos(tilt), sT = Math.sin(tilt);
+      const r = [right[0] * cT + up[0] * sT, right[1] * cT + up[1] * sT, right[2] * cT + up[2] * sT];
+      const u2 = [up[0] * cT - right[0] * sT, up[1] * cT - right[1] * sT, up[2] * cT - right[2] * sT];
+      const halfH = halfW * 0.60;
+      gl.uniform3f(progUiPlane.u.uCenter, center[0], center[1], center[2]);
+      gl.uniform3f(progUiPlane.u.uRight, r[0] * halfW, r[1] * halfW, r[2] * halfW);
+      gl.uniform3f(progUiPlane.u.uUp, u2[0] * halfH, u2[1] * halfH, u2[2] * halfH);
+      gl.uniform1f(progUiPlane.u.uEmit, emit);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+    const band = (a, b, c, d) => {
+      const chg = reveal.charge;
+      const inS = clamp((chg - a) / Math.max(b - a, 1e-4), 0, 1);
+      const outS = clamp((chg - c) / Math.max(d - c, 1e-4), 0, 1);
+      return (inS * inS * (3 - 2 * inS)) * (1 - outS * outS * (3 - 2 * outS));
+    };
+    // Peripheral glimpses: faint UI shards gliding past the frame's sides
+    // during the zoom — a suggestion of what's coming. Each has its own
+    // in/out window, offset and tilt, so they pass one after another.
+    const off = (ox, oy, oz) => [
+      right[0] * ox + up[0] * oy + fw[0] * oz,
+      right[1] * ox + up[1] * oy + fw[1] * oz + 0,
+      right[2] * ox + up[2] * oy + fw[2] * oz + prismMidZ,
+    ];
+    drawPlane(off(-0.38, 0.10, -0.05), 0.28, 0.13, 0.32 * band(0.10, 0.28, 0.45, 0.62));
+    drawPlane(off(0.40, -0.14, 0.08), -0.22, 0.15, 0.30 * band(0.22, 0.40, 0.58, 0.74));
+    drawPlane(off(-0.30, -0.24, 0.16), 0.14, 0.11, 0.28 * band(0.34, 0.52, 0.68, 0.84));
+    // The main page at the prism's core
+    drawPlane([0, 0, prismMidZ], 0, 0.30, uiEmit * (0.85 + 0.35 * reveal.charge));
   }
 
   gl.blendFunc(gl.ONE, gl.ONE);                       // additive light
