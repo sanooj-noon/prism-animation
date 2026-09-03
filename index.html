@@ -729,7 +729,7 @@ function mat4Mul(a, b) {
   return out;
 }
 function cameraView(aspect, orbitX = 0, orbitY = 0, target = [0, 0, 0], distance = CAMERA_DISTANCE) {
-  const yaw = rad(clamp(orbitX, -1, 4.2) * CAMERA_ORBIT_DEGREES);
+  const yaw = rad(clamp(orbitX, -1, 5.0) * CAMERA_ORBIT_DEGREES);
   const pitch = rad(-clamp(orbitY, -1, 1) * CAMERA_ORBIT_DEGREES);
   const cp = Math.cos(pitch);
   const pos = [
@@ -820,6 +820,8 @@ function heroRevealProgress(t) {
     approach,
     sceneFade,
     lightDim,
+    charge,
+    fadeOut,
     charging,
     homeOpacity: homeOpacity * fadeOut,
   };
@@ -1843,7 +1845,7 @@ function frame(nowMs) {
     // the idle drift.
     const dq = clamp((elapsed - 3.4) / 2.0, 0, 1);
     const diveSwing = dq * dq * dq * (dq * (dq * 6 - 15) + 10);
-    state.orbitGoal = [Math.min(yaw, 1) + 3.0 * diveSwing,
+    state.orbitGoal = [yaw + 3.0 * diveSwing,   // uncapped drift -> no stall
                        0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
     lerpToward(state.orbit, state.orbitGoal, CAMERA_ORBIT_LERP);
 
@@ -2004,16 +2006,42 @@ function frame(nowMs) {
   gl.uniform3f(progCopyReveal.u.uBackgroundColor, 0, 0, 0);
   gl.uniform1f(progCopyReveal.u.uRevealProgress, reveal.opacity);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
-  homepageEl.style.opacity = reveal.homeOpacity;
-  // Seen-through-glass focus: the UI arrives defocused and sharpens as the
-  // glass clears (a refraction read, not a white flash).
-  if (reveal.homeOpacity > 0 && reveal.homeOpacity < 1) {
-    const blur = 18 * (1 - reveal.homeOpacity);
-    homepageEl.style.filter = `blur(${blur.toFixed(1)}px)`;
-    homepageEl.style.transform = `scale(${(1.07 - 0.07 * reveal.homeOpacity).toFixed(4)})`;
-  } else {
-    homepageEl.style.filter = '';
-    homepageEl.style.transform = '';
+  // The right side face of the prism is the transparent window: the UI is
+  // clipped to that face's screen projection, so it appears ONLY through the
+  // glass face and takes over as the camera passes through it. No fade.
+  {
+    const chg = reveal.charge;
+    if (chg > 0.08 && reveal.sceneFade > 0.001) {
+      const m = camera.viewProjection;
+      const corners = [
+        [TRI.c[0], TRI.c[1], PRISM_BACK_Z],
+        [TRI.a[0], TRI.a[1], PRISM_BACK_Z],
+        [TRI.a[0], TRI.a[1], PRISM_FRONT_Z],
+        [TRI.c[0], TRI.c[1], PRISM_FRONT_Z],
+      ];
+      let behind = false;
+      const pts = corners.map((p) => {
+        const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+        if (w < 0.02) behind = true;
+        const x = (m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / w;
+        const y = (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w;
+        return `${((x * 0.5 + 0.5) * 100).toFixed(2)}% ${((0.5 - y * 0.5) * 100).toFixed(2)}%`;
+      });
+      homepageEl.style.opacity = reveal.fadeOut;
+      // Once a corner passes behind the eye we are through the face — window open.
+      homepageEl.style.clipPath = behind ? '' : `polygon(${pts.join(', ')})`;
+      const blur = 10 * (1 - Math.min(1, chg * 1.15));
+      homepageEl.style.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : '';
+    } else if (chg > 0.5) {
+      // dive finished: full clean UI
+      homepageEl.style.opacity = reveal.fadeOut;
+      homepageEl.style.clipPath = '';
+      homepageEl.style.filter = '';
+    } else {
+      homepageEl.style.opacity = 0;
+      homepageEl.style.clipPath = '';
+      homepageEl.style.filter = '';
+    }
   }
   homepageEl.classList.toggle('show', reveal.homeOpacity > 0.01);
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
