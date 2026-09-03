@@ -525,7 +525,14 @@ function buildLightMesh(light, wallHalfExtent, out) {
     const tip = (p) => add2(p.origin, mul2(p.direction, 1));
     const width = Math.abs(cross2(sub2(tip(b), tip(a)), mean));
     const span = (hi - lo) / (bands.length - 1);
-    return exposure * beamWidthTotal * weights[sl] * band.paths[sl].transmission
+    // Feather the fan's angular edges: a gentle roll-off at the red side and
+    // a broad fade on the blue/violet side, so the fan's underside dissolves
+    // into black instead of ending as a hard bright blue line.
+    const eK = e / (bands.length - 1);
+    const redEdge = Math.min(1, (1 - eK) / 0.10);
+    const blueEdge = Math.min(1, eK / 0.30);
+    const edgeFeather = (redEdge * redEdge * (3 - 2 * redEdge)) * (blueEdge * blueEdge * (3 - 2 * blueEdge));
+    return edgeFeather * exposure * beamWidthTotal * weights[sl] * band.paths[sl].transmission
       / Math.max(width / span, 1e-4);
   }));
 
