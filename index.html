@@ -1486,6 +1486,35 @@ void main() {
   fragColor = vec4(vec3(0.92, 0.96, 1.0) * (vBrightness * radial * clamp(uReveal, 0.0, 1.0)), 0.0);
 }`;
 
+
+const UIPLANE_VS = `#version 300 es
+precision highp float;
+uniform mat4 uViewProjection;
+uniform vec3 uCenter;
+uniform vec3 uRight;   // half-width vector
+uniform vec3 uUp;      // half-height vector
+out vec2 vUv;
+void main() {
+  vec2 c = vec2((gl_VertexID == 1 || gl_VertexID == 2 || gl_VertexID == 4) ? 1.0 : -1.0,
+                (gl_VertexID >= 2 && gl_VertexID != 3) ? 1.0 : -1.0);
+  vec3 world = uCenter + uRight * c.x + uUp * c.y;
+  vUv = vec2(c.x * 0.5 + 0.5, 0.5 - c.y * 0.5);
+  gl_Position = uViewProjection * vec4(world, 1.0);
+}`;
+
+const UIPLANE_FS = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uTex;
+uniform float uEmit;
+out vec4 fragColor;
+void main() {
+  vec3 c = texture(uTex, vUv).rgb;
+  // sRGB-ish to linear so the ACES pass returns it faithfully
+  c = c * c * (vec3(1.0) + 0.2 * (vec3(1.0) - c));
+  fragColor = vec4(c * uEmit, uEmit);   // premultiplied
+}`;
+
 // ---------------------------------------------------------------------------
 // WebGL2 setup
 // ---------------------------------------------------------------------------
@@ -1574,6 +1603,26 @@ const progPresent = program(FS_QUAD_VS, PRESENT_FS);
 const progCopyReveal = program(FS_QUAD_VS, COPY_REVEAL_FS);
 const progDust = program(DUST_VS, DUST_FS);
 const progAmbient = program(AMBIENT_VS, AMBIENT_FS);
+const progUiPlane = program(UIPLANE_VS, UIPLANE_FS);
+// The UI as a texture living INSIDE the scene, so the glass genuinely
+// refracts and shades it during the dive.
+const uiTex = gl.createTexture();
+let uiTexReady = false;
+{
+  const img = new Image();
+  img.onload = () => {
+    gl.bindTexture(gl.TEXTURE_2D, uiTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    uiTexReady = true;
+  };
+  img.src = 'home%20page.png';
+}
 
 // Environment texture (baked once) — with a full mip chain so reflections
 // select a prefiltered level matching their pixel footprint (kills the
@@ -1901,6 +1950,28 @@ function frame(nowMs) {
   gl.drawElements(gl.TRIANGLES, prismIndexCount, gl.UNSIGNED_SHORT, 0);
   gl.disable(gl.CULL_FACE);
 
+  // UI plane inside the glass: it materializes at the prism's core during
+  // the dive and is REFRACTED by the front interface like everything else.
+  const uiEmit = uiTexReady ? clamp((reveal.charge - 0.12) / 0.5, 0, 1) : 0;
+  if (uiEmit > 0.001) {
+    const fw = norm3([-camera.position[0], -camera.position[1], prismMidZ - camera.position[2]]);
+    const right = norm3(cross3(fw, [0, 1, 0]));
+    const up = cross3(right, fw);
+    const halfW = 0.30, halfH = halfW * 0.60;
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(progUiPlane.p);
+    gl.uniformMatrix4fv(progUiPlane.u.uViewProjection, false, camera.viewProjection);
+    gl.uniform3f(progUiPlane.u.uCenter, 0, 0, prismMidZ);
+    gl.uniform3f(progUiPlane.u.uRight, right[0] * halfW, right[1] * halfW, right[2] * halfW);
+    gl.uniform3f(progUiPlane.u.uUp, up[0] * halfH, up[1] * halfH, up[2] * halfH);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, uiTex);
+    gl.uniform1i(progUiPlane.u.uTex, 0);
+    gl.uniform1f(progUiPlane.u.uEmit, uiEmit * (0.85 + 0.35 * reveal.charge));
+    gl.bindVertexArray(emptyVao);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
   gl.blendFunc(gl.ONE, gl.ONE);                       // additive light
   gl.useProgram(progLight.p);
   gl.uniformMatrix4fv(progLight.u.uViewProjection, false, camera.viewProjection);
@@ -2007,47 +2078,15 @@ function frame(nowMs) {
   gl.uniform3f(progCopyReveal.u.uBackgroundColor, 0, 0, 0);
   gl.uniform1f(progCopyReveal.u.uRevealProgress, reveal.opacity);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
-  // The right side face of the prism is the transparent window: the UI is
-  // clipped to that face's screen projection, so it appears ONLY through the
-  // glass face and takes over as the camera passes through it. No fade.
+  // Final handoff: the real DOM page dissolves in only once the eye is
+  // through the glass (the in-scene UI plane has already filled the frame),
+  // so the swap is invisible.
   {
-    const chg = reveal.charge;
-    if (chg > 0.08 && reveal.sceneFade > 0.001) {
-      const m = camera.viewProjection;
-      const corners = [
-        [TRI.c[0], TRI.c[1], PRISM_BACK_Z],
-        [TRI.a[0], TRI.a[1], PRISM_BACK_Z],
-        [TRI.a[0], TRI.a[1], PRISM_FRONT_Z],
-        [TRI.c[0], TRI.c[1], PRISM_FRONT_Z],
-      ];
-      let behind = false;
-      const pts = corners.map((p) => {
-        const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
-        if (w < 0.02) behind = true;
-        const x = (m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / w;
-        const y = (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w;
-        return `${((x * 0.5 + 0.5) * 100).toFixed(2)}% ${((0.5 - y * 0.5) * 100).toFixed(2)}%`;
-      });
-      // Materialize gently inside the face: opacity and focus ride the dive
-      // (quintic charge), so the window's content breathes in — never a snap.
-      const emerge = Math.min(1, (chg - 0.08) / 0.45);
-      homepageEl.style.opacity = reveal.fadeOut * (emerge * emerge * (3 - 2 * emerge));
-      // Once a corner passes behind the eye we are through the face — window open.
-      homepageEl.style.clipPath = behind ? '' : `polygon(${pts.join(', ')})`;
-      const blur = 14 * (1 - Math.min(1, chg * 1.1));
-      homepageEl.style.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : '';
-    } else if (chg > 0.5) {
-      // dive finished: full clean UI
-      homepageEl.style.opacity = reveal.fadeOut;
-      homepageEl.style.clipPath = '';
-      homepageEl.style.filter = '';
-    } else {
-      homepageEl.style.opacity = 0;
-      homepageEl.style.clipPath = '';
-      homepageEl.style.filter = '';
-    }
+    const h = clamp((reveal.charge - 0.9) / 0.08, 0, 1);
+    homepageEl.style.opacity = reveal.fadeOut * (h * h * (3 - 2 * h));
+    homepageEl.style.clipPath = '';
+    homepageEl.style.filter = '';
   }
-  homepageEl.classList.toggle('show', reveal.homeOpacity > 0.01);
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
 
   gl.enable(gl.BLEND);
