@@ -844,7 +844,7 @@ function heroRevealProgress(t) {
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 5.8;    // UI fully in ~4.6s, holds ~1.2s, then fades
+const LOOP_FADE_START = 7.2;    // full UI with cards shows ~1.5s before the loop fades
 const LOOP_FADE_DURATION = 0.7; // fade-to-black length
 const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.4; // + beat of black
 // World point the camera flies toward: on the light plane, out along the fan.
@@ -2262,13 +2262,23 @@ function frame(nowMs) {
         [TRI.c[0], TRI.c[1], PRISM_FRONT_Z],
       ];
       let behind = false;
-      const pts = corners.map((p) => {
+      const proj = corners.map((p) => {
         const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
         if (w < 0.02) behind = true;
         const x = (m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / Math.max(w, 1e-5);
         const y = (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / Math.max(w, 1e-5);
-        return `${((x * 0.5 + 0.5) * 100).toFixed(2)}% ${((0.5 - y * 0.5) * 100).toFixed(2)}%`;
+        return [(x * 0.5 + 0.5) * 100, (0.5 - y * 0.5) * 100];
       });
+      // The camera stops outside the glass, so the silhouette alone never
+      // sweeps the whole frame. Once the dive settles, keep the mask growing
+      // about its centroid until it passes the edges — the same shape-wipe,
+      // carried to completion.
+      const gEx = clamp((reveal.charge - 0.82) / 0.18, 0, 1);
+      const grow = 1 + 6 * gEx * gEx * (3 - 2 * gEx);
+      const cx = (proj[0][0] + proj[1][0] + proj[2][0]) / 3;
+      const cy = (proj[0][1] + proj[1][1] + proj[2][1]) / 3;
+      const pts = proj.map(([x, y]) =>
+        `${(cx + (x - cx) * grow).toFixed(2)}% ${(cy + (y - cy) * grow).toFixed(2)}%`);
       homepageEl.style.opacity = reveal.fadeOut;
       homepageEl.style.clipPath = behind ? '' : `polygon(${pts.join(', ')})`;
       homepageEl.classList.toggle('show', reveal.fadeOut > 0.5);
