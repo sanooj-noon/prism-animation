@@ -1535,6 +1535,8 @@ float edgeSide(vec2 s, vec2 e, vec2 p) {
   return (e.x - s.x) * (p.y - s.y) - (e.y - s.y) * (p.x - s.x);
 }
 void main() {
+  float emit = uEmit;
+  vec3 c = texture(uTex, vUv).rgb;
   if (uClipTri > 0.5) {
     vec2 f = gl_FragCoord.xy / max(uRes, vec2(1.0));
     float sa = edgeSide(uTriA, uTriB, f);
@@ -1543,11 +1545,23 @@ void main() {
     bool hasNeg = sa < 0.0 || sb < 0.0 || sc < 0.0;
     bool hasPos = sa > 0.0 || sb > 0.0 || sc > 0.0;
     if (hasNeg && hasPos) discard;   // outside the glass silhouette
+    // Realistic glass response:
+    // 1. Highlight-weighted — reflections carry the bright parts of the
+    //    scene; midtones thin out, darks disappear into the glass.
+    c = pow(c, vec3(1.7));
+    // 2. Fresnel grading — faint at the face centers, stronger toward the
+    //    silhouette edges where the glass reflects at grazing angles.
+    vec2 cen = (uTriA + uTriB + uTriC) / 3.0;
+    float triScale = max(distance(uTriA, cen), max(distance(uTriB, cen), distance(uTriC, cen)));
+    float rr = clamp(distance(f, cen) / max(triScale, 1e-4), 0.0, 1.0);
+    emit *= 0.35 + 1.05 * rr * rr;
+    // 3. Soft feather at the very rim so the reflection never cuts hard.
+    float minSide = min(abs(sa), min(abs(sb), abs(sc))) / max(triScale, 1e-4);
+    emit *= clamp(minSide / 0.03, 0.0, 1.0);
   }
-  vec3 c = texture(uTex, vUv).rgb;
   // sRGB-ish to linear so the ACES pass returns it faithfully
   c = c * c * (vec3(1.0) + 0.2 * (vec3(1.0) - c));
-  fragColor = vec4(c * uEmit, uEmit);   // premultiplied
+  fragColor = vec4(c * emit, emit);   // premultiplied
 }`;
 
 // ---------------------------------------------------------------------------
