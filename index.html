@@ -1867,7 +1867,8 @@ function frame(nowMs) {
   // Camera pull-back: stay centered on the prism and charge backward.
   const ap = reveal.approach;
   const camDistance = CAMERA_DISTANCE + (DIVE_END_DISTANCE - CAMERA_DISTANCE) * ap;
-  const camera = cameraView(state.aspect, state.orbit[0], state.orbit[1], [0, 0, 0], camDistance);
+  const prismMidZ = (PRISM_BACK_Z + PRISM_FRONT_Z) / 2;
+  const camera = cameraView(state.aspect, state.orbit[0], state.orbit[1], [0, 0, prismMidZ * ap], camDistance);
 
   // Coarse threshold: dispersion rebuilds land every few frames instead of
   // every frame, and stop entirely before the camera charge begins.
@@ -2027,10 +2028,13 @@ function frame(nowMs) {
         const y = (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w;
         return `${((x * 0.5 + 0.5) * 100).toFixed(2)}% ${((0.5 - y * 0.5) * 100).toFixed(2)}%`;
       });
-      homepageEl.style.opacity = reveal.fadeOut;
+      // Materialize gently inside the face: opacity and focus ride the dive
+      // (quintic charge), so the window's content breathes in — never a snap.
+      const emerge = Math.min(1, (chg - 0.08) / 0.45);
+      homepageEl.style.opacity = reveal.fadeOut * (emerge * emerge * (3 - 2 * emerge));
       // Once a corner passes behind the eye we are through the face — window open.
       homepageEl.style.clipPath = behind ? '' : `polygon(${pts.join(', ')})`;
-      const blur = 10 * (1 - Math.min(1, chg * 1.15));
+      const blur = 14 * (1 - Math.min(1, chg * 1.1));
       homepageEl.style.filter = blur > 0.3 ? `blur(${blur.toFixed(1)}px)` : '';
     } else if (chg > 0.5) {
       // dive finished: full clean UI
