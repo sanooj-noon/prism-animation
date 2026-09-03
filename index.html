@@ -1902,8 +1902,14 @@ function frame(nowMs) {
     // incidence angle shifts, so the refraction and the fan's exit direction
     // genuinely change (re-traced through the glass). Rebuilds are thresholded
     // so they land only every few frames and never cause hitches.
-    const aimYaw = Math.min(state.orbit[0], 1);
-    const aimTarget = [0.5 + 0.06 * aimYaw, 0.5 + 0.04 * aimYaw];
+    // Physical coupling: the beam's angle of incidence tracks the prism's
+    // actual rotation angle (1 deg of turn -> 0.45 deg of incidence change,
+    // uncapped), so the internal refraction and the fan re-solve through
+    // Snell/Fresnel continuously while the prism turns.
+    const orbitDeg = state.orbit[0] * CAMERA_ORBIT_DEGREES;
+    const incidenceDeg = 60 - 0.45 * orbitDeg;
+    const arcT = clamp((incidenceDeg + 35) / 190, 0.08, 0.92);
+    const aimTarget = [arcT, 0.5 + 0.04 * Math.min(state.orbit[0], 1)];
     const dist = Math.hypot(aimTarget[0] - state.aim[0], aimTarget[1] - state.aim[1]);
     if (dist > 0.0008) {
       state.aim[0] += (aimTarget[0] - state.aim[0]) * LAMP_AIM_LERP;
