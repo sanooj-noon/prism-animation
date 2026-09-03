@@ -805,7 +805,7 @@ function heroRevealProgress(t) {
   // (that happens only in the last quarter of the dive, charge ~0.75+); ONLY
   // THEN does the UI emerge through the glass, and the sheen dissolves last.
   const homeOpacity = clamp((charge - 0.8) / 0.14, 0, 1);
-  const sceneFade = 1 - clamp((charge - 0.84) / 0.14, 0, 1);
+  const sceneFade = 1 - clamp((charge - 0.82) / 0.12, 0, 1);
   // Beams dim late — they stay part of the zoom, only yielding right before
   // the glass swallows the frame (prevents point-blank bloom whiteout).
   const lightDim = 1 - 0.85 * clamp((charge - 0.68) / 0.22, 0, 1);
@@ -1952,7 +1952,7 @@ function frame(nowMs) {
 
   // UI plane inside the glass: it materializes at the prism's core during
   // the dive and is REFRACTED by the front interface like everything else.
-  const uiEmit = uiTexReady ? clamp((reveal.charge - 0.12) / 0.5, 0, 1) : 0;
+  const uiEmit = (uiTexReady ? clamp((reveal.charge - 0.12) / 0.5, 0, 1) : 0) * (1 - (state.uiHandoff || 0));
   if (uiEmit > 0.001) {
     const fw = norm3([-camera.position[0], -camera.position[1], prismMidZ - camera.position[2]]);
     const right = norm3(cross3(fw, [0, 1, 0]));
@@ -2082,10 +2082,15 @@ function frame(nowMs) {
   // through the glass (the in-scene UI plane has already filled the frame),
   // so the swap is invisible.
   {
-    const h = clamp((reveal.charge - 0.9) / 0.08, 0, 1);
-    homepageEl.style.opacity = reveal.fadeOut * (h * h * (3 - 2 * h));
+    // Hand off while the in-scene page still frames like the real one, and
+    // trigger the staggered nav/heading/cards entrance.
+    const h = clamp((reveal.charge - 0.8) / 0.1, 0, 1);
+    const hs = h * h * (3 - 2 * h);
+    homepageEl.style.opacity = reveal.fadeOut * hs;
+    homepageEl.classList.toggle('show', hs > 0.02 && reveal.fadeOut > 0.5);
     homepageEl.style.clipPath = '';
     homepageEl.style.filter = '';
+    state.uiHandoff = hs;
   }
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
 
