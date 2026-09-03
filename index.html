@@ -1974,42 +1974,6 @@ function frame(nowMs) {
   gl.drawElements(gl.TRIANGLES, prismIndexCount, gl.UNSIGNED_SHORT, 0);
   gl.disable(gl.CULL_FACE);
 
-  // UI plane inside the glass: it materializes at the prism's core during
-  // the dive and is REFRACTED by the front interface like everything else.
-  const uiEmit = (uiTexReady ? clamp((reveal.charge - 0.12) / 0.5, 0, 1) : 0) * (1 - (state.uiHandoff || 0));
-  if (uiTexReady && (uiEmit > 0.001 || reveal.charge > 0.05)) {
-    const fw = norm3([-camera.position[0], -camera.position[1], prismMidZ - camera.position[2]]);
-    const right = norm3(cross3(fw, [0, 1, 0]));
-    const up = cross3(right, fw);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.useProgram(progUiPlane.p);
-    gl.uniformMatrix4fv(progUiPlane.u.uViewProjection, false, camera.viewProjection);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, uiTex);
-    gl.uniform1i(progUiPlane.u.uTex, 0);
-    gl.bindVertexArray(emptyVao);
-    const drawPlane = (center, tilt, halfW, emit) => {
-      if (emit <= 0.002) return;
-      const cT = Math.cos(tilt), sT = Math.sin(tilt);
-      const r = [right[0] * cT + up[0] * sT, right[1] * cT + up[1] * sT, right[2] * cT + up[2] * sT];
-      const u2 = [up[0] * cT - right[0] * sT, up[1] * cT - right[1] * sT, up[2] * cT - right[2] * sT];
-      const halfH = halfW * 0.60;
-      gl.uniform3f(progUiPlane.u.uCenter, center[0], center[1], center[2]);
-      gl.uniform3f(progUiPlane.u.uRight, r[0] * halfW, r[1] * halfW, r[2] * halfW);
-      gl.uniform3f(progUiPlane.u.uUp, u2[0] * halfH, u2[1] * halfH, u2[2] * halfH);
-      gl.uniform1f(progUiPlane.u.uEmit, emit);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    };
-    const band = (a, b, c, d) => {
-      const chg = reveal.charge;
-      const inS = clamp((chg - a) / Math.max(b - a, 1e-4), 0, 1);
-      const outS = clamp((chg - c) / Math.max(d - c, 1e-4), 0, 1);
-      return (inS * inS * (3 - 2 * inS)) * (1 - outS * outS * (3 - 2 * outS));
-    };
-    // The main page at the prism's core
-    drawPlane([0, 0, prismMidZ], 0, 0.30, uiEmit * (0.85 + 0.35 * reveal.charge));
-  }
-
   gl.blendFunc(gl.ONE, gl.ONE);                       // additive light
   gl.useProgram(progLight.p);
   gl.uniformMatrix4fv(progLight.u.uViewProjection, false, camera.viewProjection);
