@@ -2125,10 +2125,14 @@ function frame(nowMs) {
   // prism approaches the camera.
   {
     const chg = reveal.charge;
-    const rIn = clamp((chg - 0.2) / 0.5, 0, 1);
-    const rOut = clamp((chg - 0.88) / 0.1, 0, 1);
-    const sideEmit = (0.05 + 0.13 * (rIn * rIn * (3 - 2 * rIn)))
-                   * (rIn > 0 ? 1 : 0) * (1 - rOut) * reveal.fadeOut;
+    // One zero-slope quintic ramp from 0 — no constant floor that would pop
+    // in on its first frame — and an eased fade-out, so the reflection
+    // breathes in and out with no step anywhere.
+    const rIn = clamp((chg - 0.18) / 0.55, 0, 1);
+    const rOutT = clamp((chg - 0.84) / 0.14, 0, 1);
+    const rampIn = rIn * rIn * rIn * (rIn * (rIn * 6 - 15) + 10);
+    const rampOut = 1 - rOutT * rOutT * (3 - 2 * rOutT);
+    const sideEmit = 0.18 * rampIn * rampOut * reveal.fadeOut;
     if (uiTexReady && sideEmit > 0.004) {
       const m = camera.viewProjection;
       const proj2 = (p) => {
