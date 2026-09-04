@@ -46,6 +46,10 @@ optical constants.
   update thresholds read as visible stutter/stepping.
 - Rotation and light updates should be continuous functions of time, not
   lerp-chased targets (catch-up lurches) or coarse thresholds (stepping).
+- ALWAYS verify the reveal/handoff at a WIDE viewport (1600x900), not just the
+  narrow preview panel: the silhouette mask, camera framing, and whiteout
+  behave completely differently per aspect ratio, and narrow panels hide
+  hard-edge/pop bugs that dominate on real screens.
 
 ## Deploy
 Push to `main` — GitHub Pages serves https://sanooj-noon.github.io/prism-animation/
