@@ -823,19 +823,14 @@ function heroRevealProgress(t) {
   // (that happens only in the last quarter of the dive, charge ~0.75+); ONLY
   // THEN does the UI emerge through the glass, and the sheen dissolves last.
   const homeOpacity = clamp((charge - 0.8) / 0.14, 0, 1);
-  // ONE shared, time-based quintic crossfade drives the whole final handoff:
-  // the GL scene eases out on exactly the same curve the DOM page eases in,
-  // zero-slope at both ends — no linear cut, no pop, no mismatched clocks.
-  const hIn = clamp((t - 4.95) / 0.85, 0, 1);
-  const handoff = hIn * hIn * hIn * (hIn * (hIn * 6 - 15) + 10);
-  const sceneFade = 1 - handoff;
+  const sceneFade = 1 - clamp((charge - 0.9) / 0.1, 0, 1);
   // Beams dim late — they stay part of the zoom, only yielding right before
   // the glass swallows the frame (prevents point-blank bloom whiteout).
   const lightDim = 1 - 0.85 * clamp((charge - 0.68) / 0.22, 0, 1);
-  // After the crossfade completes, the mask keeps zooming (about screen
-  // center) to finish the reveal — never before, so the UI is only ever
-  // visible strictly inside the prism while glass is on screen.
-  const st = clamp((t - 5.7) / 0.65, 0, 1);
+  // After the dive settles AND the glass has fully dissolved, the mask keeps
+  // zooming (about screen center) to finish the reveal — never before, so the
+  // UI is only ever visible strictly inside the prism while it's on screen.
+  const st = clamp((t - 5.45) / 0.55, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -852,7 +847,6 @@ function heroRevealProgress(t) {
     fadeOut,
     charging,
     settle,
-    handoff,
     homeOpacity: homeOpacity * fadeOut,
   };
 }
@@ -2268,12 +2262,11 @@ function frame(nowMs) {
     // The page is revealed THROUGH the prism's shape: clipped to the
     // projected triangle, which expands past the frame as the camera passes
     // through — a shape-wipe, not a fade.
-    // The DOM page enters on the SAME quintic the GL scene exits on (a true
-    // crossfade) — the in-scene refracted UI plane carries the through-glass
-    // reveal before that; earlier entry would expose the DOM through dark
-    // glass via the screen blend.
-    const h = reveal.handoff;
-    state.uiHandoff = h;
+    // The DOM page enters only as the GL scene dissolves (the in-scene
+    // refracted UI plane carries the through-glass reveal before that) —
+    // earlier, dark glass regions would expose the DOM via the screen blend.
+    const h = clamp((reveal.charge - 0.92) / 0.08, 0, 1);
+    state.uiHandoff = h * h * (3 - 2 * h);
     if (h > 0.001 && reveal.fadeOut > 0.01) {
       const m = camera.viewProjection;
       // All six prism corners (front AND back cross-section): the mask is the
@@ -2323,9 +2316,9 @@ function frame(nowMs) {
       const cx = 50, cy = 50;
       const pts = proj.map(([x, y]) =>
         `${(cx + (x - cx) * grow).toFixed(2)}% ${(cy + (y - cy) * grow).toFixed(2)}%`);
-      homepageEl.style.opacity = pts.length >= 3 ? h * reveal.fadeOut : 0;
+      homepageEl.style.opacity = pts.length >= 3 ? reveal.fadeOut : 0;
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
-      homepageEl.classList.toggle('show', h > 0.12 && reveal.fadeOut > 0.5);
+      homepageEl.classList.toggle('show', reveal.fadeOut > 0.5);
       homepageEl.style.filter = '';
     } else {
       homepageEl.style.opacity = 0;
