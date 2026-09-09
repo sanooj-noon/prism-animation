@@ -1817,6 +1817,9 @@ const state = {
 // Landing-page mode: no pointer interaction — the animation is fully scripted.
 // Click (or press R) to replay the intro.
 const homepageEl = document.getElementById('homepage');
+// The page under the canvas is always in its FINISHED state — the prism mask
+// reveals the exact final screen (no empty-white-then-cascade beat).
+homepageEl.classList.add('show');
 // Cards (data + reveal order ported from the prism-app previous attempt):
 // nav(0) -> heading(1) -> filters(2) -> each card in turn, 80ms stagger.
 {
@@ -1865,7 +1868,6 @@ function replay() {
   state.aim = [0.5, 0.5];
   state.lightDirty = true;
   homepageEl.style.opacity = 0;
-  homepageEl.classList.remove('show');
 }
 canvas.addEventListener('click', replay);
 window.addEventListener('keydown', (e) => {
@@ -2343,13 +2345,11 @@ function frame(nowMs) {
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
       homepageEl.style.transformOrigin = `${cx.toFixed(2)}% ${cy.toFixed(2)}%`;
       homepageEl.style.transform = `scale(${(0.001 + 0.999 * appear).toFixed(4)})`;
-      homepageEl.classList.toggle('show', appear > 0.25 && reveal.fadeOut > 0.5);
       homepageEl.style.filter = '';
     } else {
       homepageEl.style.opacity = 0;
       homepageEl.style.clipPath = '';
       homepageEl.style.transform = '';
-      homepageEl.classList.toggle('show', false);
     }
   }
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
