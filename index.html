@@ -25,7 +25,7 @@
     opacity: 1;
     transform: translateY(30px);
     transition-property: opacity, transform;
-    transition-duration: 950ms;
+    transition-duration: 320ms;
     /* Soft symmetric ease: slow in, gentle glide, long feathered landing —
        calm, eye-relaxing settle. */
     transition-timing-function: cubic-bezier(0.45, 0, 0.12, 1);
@@ -863,9 +863,13 @@ function heroRevealProgress(t) {
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 7.2;    // dive ends ~5.0, mask open ~5.8, tiles settled ~6.6 -> hold, loop
+const LOOP_FADE_START = 6.6;    // short hold after settle, then fade
 const LOOP_FADE_DURATION = 0.7; // fade-to-black length
-const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.4; // + beat of black
+const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.1; // + breath of black
+// Real-time compression: the whole cycle plays in REAL_DURATION seconds.
+// Every beat keeps its exact shape and overlaps — time just flows faster.
+const REAL_DURATION = 2.5;
+const ANIM_SPEED = REVEAL_CYCLE / REAL_DURATION;
 // World point the camera flies toward: on the light plane, out along the fan.
 // The camera charges FORWARD, entering the glass and passing through it:
 // final distance puts the eye inside the prism (front face at ~0.126), so the
@@ -1842,7 +1846,7 @@ const homepageEl = document.getElementById('homepage');
   cards.forEach((card, i) => {
     const el = document.createElement('article');
     el.className = 'reveal card';
-    el.style.transitionDelay = ((3 + i) * 130) + 'ms';
+    el.style.transitionDelay = ((3 + i) * 45) + 'ms';
     el.innerHTML = `
       <div class="card__banner card__banner--${card.banner}">
         <div class="card__phone"></div>
@@ -1865,7 +1869,7 @@ const homepageEl = document.getElementById('homepage');
   });
 }
 // Dev hook: seek the timeline to an exact second (window.__seek(3.2)).
-window.__seek = (t) => { state.startTime = performance.now() / 1000 - t; };
+window.__seek = (t) => { state.startTime = performance.now() / 1000 - t / ANIM_SPEED; };
 function replay() {
   state.startTime = undefined;
   state.dispersionMix = -1;
@@ -1945,7 +1949,7 @@ function frame(nowMs) {
   requestAnimationFrame(frame);
   const now = nowMs / 1000;
   if (state.startTime === undefined) state.startTime = now;
-  const elapsed = (now - state.startTime) % REVEAL_CYCLE;   // looping timeline
+  const elapsed = ((now - state.startTime) * ANIM_SPEED) % REVEAL_CYCLE;   // looping timeline (compressed)
   // On cycle wrap (during the beat of black), reset the held rotation and
   // beam aim so the new pass starts from neutral instead of visibly
   // un-winding the pose the charge-back froze.
