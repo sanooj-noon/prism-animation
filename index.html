@@ -832,10 +832,13 @@ function heroRevealProgress(t) {
   // Beams dim late — they stay part of the zoom, only yielding right before
   // the glass swallows the frame (prevents point-blank bloom whiteout).
   const lightDim = 1 - 0.85 * clamp((charge - 0.68) / 0.22, 0, 1);
-  // After the crossfade completes, the mask keeps zooming (about screen
-  // center) to finish the reveal — never before, so the UI is only ever
-  // visible strictly inside the prism while glass is on screen.
-  const st = clamp((t - 5.7) / 0.65, 0, 1);
+  // Final reveal: two overlapping zero-slope quintics whose SUM of motion
+  // never stops — the page scales up inside the prism (appear), and before
+  // that fully lands the mask expansion (settle) is already under way, so
+  // there is no dead stop at the joint.
+  const aIn = clamp((t - 4.65) / 0.9, 0, 1);
+  const appear = aIn * aIn * aIn * (aIn * (aIn * 6 - 15) + 10);
+  const st = clamp((t - 5.35) / 0.85, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -852,6 +855,7 @@ function heroRevealProgress(t) {
     fadeOut,
     charging,
     settle,
+    appear,
     handoff,
     homeOpacity: homeOpacity * fadeOut,
   };
@@ -2280,8 +2284,7 @@ function frame(nowMs) {
     // heart during the last stretch of rotation+zoom, growing to the full
     // silhouette — the complete UI is visible inside the prism the whole
     // time, expanding with it. No sudden appearance.
-    const aIn = clamp((reveal.charge - 0.55) / 0.42, 0, 1);
-    const appear = aIn * aIn * aIn * (aIn * (aIn * 6 - 15) + 10);
+    const appear = reveal.appear;
     if (appear > 0.001 && reveal.fadeOut > 0.01) {
       const m = camera.viewProjection;
       // All six prism corners (front AND back cross-section): the mask is the
