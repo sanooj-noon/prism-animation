@@ -2274,7 +2274,13 @@ function frame(nowMs) {
     // glass via the screen blend.
     const h = reveal.handoff;
     state.uiHandoff = h;
-    if (h > 0.001 && reveal.fadeOut > 0.01) {
+    // The mask ITSELF is the entrance: it opens from a point at the prism's
+    // heart during the last stretch of rotation+zoom, growing to the full
+    // silhouette — the complete UI is visible inside the prism the whole
+    // time, expanding with it. No sudden appearance.
+    const aIn = clamp((reveal.charge - 0.55) / 0.42, 0, 1);
+    const appear = aIn * aIn * aIn * (aIn * (aIn * 6 - 15) + 10);
+    if (appear > 0.001 && reveal.fadeOut > 0.01) {
       const m = camera.viewProjection;
       // All six prism corners (front AND back cross-section): the mask is the
       // full glass SILHOUETTE (convex hull of their projections), matching
@@ -2315,23 +2321,34 @@ function frame(nowMs) {
         upper.push(p);
       }
       const proj = lower.slice(0, -1).concat(upper.slice(0, -1));
-      // While the glass is on screen, the mask IS the prism silhouette —
-      // nothing shows outside it. Only after the scene has dissolved does the
-      // mask keep zooming, about the screen center, so it reads as the same
-      // zoom continuing (not a side wipe).
-      const grow = 1 + 6 * reveal.settle;
-      const cx = 50, cy = 50;
+      // One continuous scale about the silhouette's own centroid:
+      //   appear 0->1  : the prism-shaped window opens from a point at the
+      //                  prism's heart up to the full glass silhouette
+      //                  (always inside the glass — it scales with the zoom);
+      //   settle 0->1  : the same window keeps expanding past the frame.
+      // Pure mask reveal at full opacity — no fade, no cut.
+      // Two seamless phases sharing one zero-slope joint:
+      //   appear 0->1 : the WHOLE page (content scaled by `appear`) grows out
+      //                 of the prism's heart; the clip is the full silhouette,
+      //                 so the scaled page is always inside the glass.
+      //   settle 0->1 : content is at natural size; only the silhouette clip
+      //                 keeps expanding past the frame edges.
+      const maskGrow = 1 + 6 * reveal.settle;
+      let cx = 0, cy = 0;
+      for (const [x, y] of proj) { cx += x; cy += y; }
+      cx /= Math.max(1, proj.length); cy /= Math.max(1, proj.length);
       const pts = proj.map(([x, y]) =>
-        `${(cx + (x - cx) * grow).toFixed(2)}% ${(cy + (y - cy) * grow).toFixed(2)}%`);
-      // Pure mask reveal: the page is at FULL opacity and only the expanding
-      // prism-silhouette clip discloses it — no fade into visibility.
+        `${(cx + (x - cx) * maskGrow).toFixed(2)}% ${(cy + (y - cy) * maskGrow).toFixed(2)}%`);
       homepageEl.style.opacity = pts.length >= 3 ? reveal.fadeOut : 0;
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
-      homepageEl.classList.toggle('show', h > 0.12 && reveal.fadeOut > 0.5);
+      homepageEl.style.transformOrigin = `${cx.toFixed(2)}% ${cy.toFixed(2)}%`;
+      homepageEl.style.transform = `scale(${(0.001 + 0.999 * appear).toFixed(4)})`;
+      homepageEl.classList.toggle('show', appear > 0.25 && reveal.fadeOut > 0.5);
       homepageEl.style.filter = '';
     } else {
       homepageEl.style.opacity = 0;
       homepageEl.style.clipPath = '';
+      homepageEl.style.transform = '';
       homepageEl.classList.toggle('show', false);
     }
   }
