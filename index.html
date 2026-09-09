@@ -25,7 +25,7 @@
     opacity: 1;
     transform: translateY(30px);
     transition-property: opacity, transform;
-    transition-duration: 385ms;
+    transition-duration: 950ms;
     /* Soft symmetric ease: slow in, gentle glide, long feathered landing —
        calm, eye-relaxing settle. */
     transition-timing-function: cubic-bezier(0.45, 0, 0.12, 1);
@@ -1846,7 +1846,7 @@ const homepageEl = document.getElementById('homepage');
   cards.forEach((card, i) => {
     const el = document.createElement('article');
     el.className = 'reveal card';
-    el.style.transitionDelay = ((3 + i) * 53) + 'ms';
+    el.style.transitionDelay = ((3 + i) * 130) + 'ms';
     el.innerHTML = `
       <div class="card__banner card__banner--${card.banner}">
         <div class="card__phone"></div>
