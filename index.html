@@ -18,9 +18,12 @@
     color: #111;
   }
   /* Staggered entrance: offset+fade, true ease-in-out, per-element delay. */
+  /* Tiles are ALWAYS fully opaque (the mask reveals a finished screen) —
+     they only carry a slight downward offset that settles to rest with a
+     per-tile stagger once the UI becomes visible. */
   #homepage .reveal {
-    opacity: 0;
-    transform: translateY(18px);
+    opacity: 1;
+    transform: translateY(14px);
     transition-property: opacity, transform;
     transition-duration: 550ms;
     transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
@@ -837,7 +840,7 @@ function heroRevealProgress(t) {
   // visible strictly inside the prism while glass is on screen.
   // Long, gentle expansion: the visible part of the wipe (the window edges
   // crossing the screen) takes real time instead of flashing by.
-  const st = clamp((t - 5.55) / 1.5, 0, 1);
+  const st = clamp((t - 4.95) / 2.1, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -1819,9 +1822,9 @@ const state = {
 // Landing-page mode: no pointer interaction — the animation is fully scripted.
 // Click (or press R) to replay the intro.
 const homepageEl = document.getElementById('homepage');
-// The page under the canvas is always in its FINISHED state — the prism mask
-// reveals the exact final screen (no empty-white-then-cascade beat).
-homepageEl.classList.add('show');
+// The page under the canvas is always fully opaque — the prism mask reveals a
+// finished screen. The 'show' class (toggled in the render loop as the UI
+// becomes visible) only releases each tile's slight offset, staggered.
 // Cards (data + reveal order ported from the prism-app previous attempt):
 // nav(0) -> heading(1) -> filters(2) -> each card in turn, 80ms stagger.
 {
@@ -2359,10 +2362,12 @@ function frame(nowMs) {
       homepageEl.style.transformOrigin = `${cx.toFixed(2)}% ${cy.toFixed(2)}%`;
       homepageEl.style.transform = `scale(${(0.001 + 0.999 * appear).toFixed(4)})`;
       homepageEl.style.filter = '';
+      homepageEl.classList.toggle('show', appear > 0.08 && reveal.fadeOut > 0.5);
     } else {
       homepageEl.style.opacity = 0;
       homepageEl.style.clipPath = '';
       homepageEl.style.transform = '';
+      homepageEl.classList.toggle('show', false);
     }
   }
   canvas.style.opacity = reveal.sceneFade;   // beams dissolve, UI remains
