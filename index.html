@@ -2323,7 +2323,9 @@ function frame(nowMs) {
       const cx = 50, cy = 50;
       const pts = proj.map(([x, y]) =>
         `${(cx + (x - cx) * grow).toFixed(2)}% ${(cy + (y - cy) * grow).toFixed(2)}%`);
-      homepageEl.style.opacity = pts.length >= 3 ? h * reveal.fadeOut : 0;
+      // Pure mask reveal: the page is at FULL opacity and only the expanding
+      // prism-silhouette clip discloses it — no fade into visibility.
+      homepageEl.style.opacity = pts.length >= 3 ? reveal.fadeOut : 0;
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
       homepageEl.classList.toggle('show', h > 0.12 && reveal.fadeOut > 0.5);
       homepageEl.style.filter = '';
