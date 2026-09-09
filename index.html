@@ -25,10 +25,10 @@
     opacity: 1;
     transform: translateY(30px);
     transition-property: opacity, transform;
-    transition-duration: 550ms;
-    /* Ease-in weighted: each tile starts its settle slowly, gathers speed,
-       then catches softly at the end (a hard stop would read as a snap). */
-    transition-timing-function: cubic-bezier(0.72, 0, 0.3, 1);
+    transition-duration: 950ms;
+    /* Soft symmetric ease: slow in, gentle glide, long feathered landing —
+       calm, eye-relaxing settle. */
+    transition-timing-function: cubic-bezier(0.45, 0, 0.12, 1);
     will-change: opacity, transform;
   }
   #homepage.show .reveal { opacity: 1; transform: translateY(0); }
