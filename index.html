@@ -2359,11 +2359,22 @@ function frame(nowMs) {
       cx /= Math.max(1, shape.length); cy /= Math.max(1, shape.length);
       const pts = shape.map(([x, y]) =>
         `${(cx + (x - cx) * maskGrow).toFixed(2)}% ${(cy + (y - cy) * maskGrow).toFixed(2)}%`);
-      homepageEl.style.opacity = pts.length >= 3 ? reveal.fadeOut : 0;
+      // Crystal-to-clear: the page is born as if seen THROUGH cut glass —
+      // soft blur, bright glassy sheen, slightly washed color — and resolves
+      // into the normal UI as it grows. Also a micro opacity ramp over the
+      // first ~10% so the very first pixels never pop.
+      const crystal = 1 - appear;
+      homepageEl.style.opacity = pts.length >= 3
+        ? Math.min(1, appear * 9) * reveal.fadeOut : 0;
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
       homepageEl.style.transformOrigin = `${cx.toFixed(2)}% ${cy.toFixed(2)}%`;
       homepageEl.style.transform = `scale(${(0.001 + 0.999 * appear).toFixed(4)})`;
-      homepageEl.style.filter = '';
+      homepageEl.style.filter = crystal > 0.004
+        ? `blur(${(crystal * 10).toFixed(2)}px)` +
+          ` brightness(${(1 + crystal * 0.55).toFixed(3)})` +
+          ` saturate(${(1 - crystal * 0.45).toFixed(3)})` +
+          ` contrast(${(1 - crystal * 0.18).toFixed(3)})`
+        : '';
       homepageEl.classList.toggle('show', appear > 0.08 && reveal.fadeOut > 0.5);
     } else {
       homepageEl.style.opacity = 0;
