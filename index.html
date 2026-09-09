@@ -26,7 +26,9 @@
     transform: translateY(30px);
     transition-property: opacity, transform;
     transition-duration: 550ms;
-    transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+    /* Ease-in weighted: each tile starts its settle slowly, gathers speed,
+       then catches softly at the end (a hard stop would read as a snap). */
+    transition-timing-function: cubic-bezier(0.72, 0, 0.3, 1);
     will-change: opacity, transform;
   }
   #homepage.show .reveal { opacity: 1; transform: translateY(0); }
