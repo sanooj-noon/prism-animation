@@ -2338,10 +2338,21 @@ function frame(nowMs) {
       //   settle 0->1 : content is at natural size; only the silhouette clip
       //                 keeps expanding past the frame edges.
       const maskGrow = 1 + 5 * reveal.settle;
+      // Once the glass has dissolved and the pure mask expansion begins, the
+      // silhouette must stop tracking the (invisible) rotating prism — a
+      // wobbling, skewing polygon sweeping the screen reads as broken. Freeze
+      // the shape on the expansion's first frame and only scale it after.
+      let shape = proj;
+      if (reveal.settle > 0.0005) {
+        if (!state.maskFreeze) state.maskFreeze = proj.map((p) => p.slice());
+        shape = state.maskFreeze;
+      } else {
+        state.maskFreeze = null;
+      }
       let cx = 0, cy = 0;
-      for (const [x, y] of proj) { cx += x; cy += y; }
-      cx /= Math.max(1, proj.length); cy /= Math.max(1, proj.length);
-      const pts = proj.map(([x, y]) =>
+      for (const [x, y] of shape) { cx += x; cy += y; }
+      cx /= Math.max(1, shape.length); cy /= Math.max(1, shape.length);
+      const pts = shape.map(([x, y]) =>
         `${(cx + (x - cx) * maskGrow).toFixed(2)}% ${(cy + (y - cy) * maskGrow).toFixed(2)}%`);
       homepageEl.style.opacity = pts.length >= 3 ? reveal.fadeOut : 0;
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
