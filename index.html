@@ -818,7 +818,7 @@ function heroRevealProgress(t) {
   const creep = 0.05 * c * c * (3 - 2 * c);
   // The dive: quintic-over-q^2 — long gentle wind-up, gathers speed as the
   // prism looms, decelerates softly as the eye settles inside the glass.
-  const q = clamp((t - 3.4) / 2.0, 0, 1);
+  const q = clamp((t - 3.4) / 1.6, 0, 1);
   // Balanced quintic: the zoom is visible through the WHOLE dive — gentle
   // start, steady growth through the middle, soft landing inside the glass.
   const charge = q * q * q * (q * (q * 6 - 15) + 10);
@@ -831,7 +831,7 @@ function heroRevealProgress(t) {
   // ONE shared, time-based quintic crossfade drives the whole final handoff:
   // the GL scene eases out on exactly the same curve the DOM page eases in,
   // zero-slope at both ends — no linear cut, no pop, no mismatched clocks.
-  const hIn = clamp((t - 4.95) / 0.85, 0, 1);
+  const hIn = clamp((t - 4.55) / 0.85, 0, 1);
   const handoff = hIn * hIn * hIn * (hIn * (hIn * 6 - 15) + 10);
   const sceneFade = 1 - handoff;
   // Beams dim late — they stay part of the zoom, only yielding right before
@@ -842,7 +842,7 @@ function heroRevealProgress(t) {
   // visible strictly inside the prism while glass is on screen.
   // Long, gentle expansion: the visible part of the wipe (the window edges
   // crossing the screen) takes real time instead of flashing by.
-  const st = clamp((t - 4.95) / 1.25, 0, 1);
+  const st = clamp((t - 4.55) / 1.25, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -863,7 +863,7 @@ function heroRevealProgress(t) {
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 7.6;    // mask fully open ~6.2s, tiles settled ~7 -> short hold, then loop
+const LOOP_FADE_START = 7.2;    // dive ends ~5.0, mask open ~5.8, tiles settled ~6.6 -> hold, loop
 const LOOP_FADE_DURATION = 0.7; // fade-to-black length
 const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.4; // + beat of black
 // World point the camera flies toward: on the light plane, out along the fan.
@@ -1986,7 +1986,7 @@ function frame(nowMs) {
     // around to present its side, and the camera passes through the side face
     // (~+80deg total by entry). Quintic, so the swing blends seamlessly out of
     // the idle drift.
-    const dq = clamp((elapsed - 3.4) / 2.0, 0, 1);
+    const dq = clamp((elapsed - 3.4) / 1.6, 0, 1);
     const diveSwing = dq * dq * dq * (dq * (dq * 6 - 15) + 10);
     state.orbitGoal = [yaw + 3.0 * diveSwing,   // uncapped drift -> no stall
                        0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
