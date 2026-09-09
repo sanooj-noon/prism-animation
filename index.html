@@ -2295,13 +2295,15 @@ function frame(nowMs) {
       // full glass SILHOUETTE (convex hull of their projections), matching
       // what the eye actually sees at any viewing angle — the front triangle
       // alone drifts off-screen when the camera looks along the fan.
+      // The UI EMERGES FROM THE CA SIDE FACE — the very face that carries the
+      // mirrored UI reflection — so the reveal reads as that reflection
+      // coming alive and unfolding into the real page. The mask is the face's
+      // projected quad, glued to the glass while it's visible.
       const corners = [
-        [TRI.a[0], TRI.a[1], PRISM_FRONT_Z],
-        [TRI.b[0], TRI.b[1], PRISM_FRONT_Z],
-        [TRI.c[0], TRI.c[1], PRISM_FRONT_Z],
-        [TRI.a[0], TRI.a[1], PRISM_BACK_Z],
-        [TRI.b[0], TRI.b[1], PRISM_BACK_Z],
         [TRI.c[0], TRI.c[1], PRISM_BACK_Z],
+        [TRI.a[0], TRI.a[1], PRISM_BACK_Z],
+        [TRI.a[0], TRI.a[1], PRISM_FRONT_Z],
+        [TRI.c[0], TRI.c[1], PRISM_FRONT_Z],
       ];
       // Project to CLIP space, then clip the polygon against the near plane
       // (w >= eps) BEFORE the perspective divide. A corner drifting beside or
@@ -2315,34 +2317,16 @@ function frame(nowMs) {
         const y = (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w;
         return [(x * 0.5 + 0.5) * 100, (0.5 - y * 0.5) * 100];
       });
-      // Convex hull (monotone chain) of the six projections = the silhouette.
-      pts2.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-      const cross = (o, a, b) =>
-        (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-      const lower = [], upper = [];
-      for (const p of pts2) {
-        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
-        lower.push(p);
-      }
-      for (let i = pts2.length - 1; i >= 0; i--) {
-        const p = pts2[i];
-        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
-        upper.push(p);
-      }
-      const proj = lower.slice(0, -1).concat(upper.slice(0, -1));
-      // One continuous scale about the silhouette's own centroid:
-      //   appear 0->1  : the prism-shaped window opens from a point at the
-      //                  prism's heart up to the full glass silhouette
-      //                  (always inside the glass — it scales with the zoom);
-      //   settle 0->1  : the same window keeps expanding past the frame.
-      // Pure mask reveal at full opacity — no fade, no cut.
-      // Two seamless phases sharing one zero-slope joint:
-      //   appear 0->1 : the WHOLE page (content scaled by `appear`) grows out
-      //                 of the prism's heart; the clip is the full silhouette,
-      //                 so the scaled page is always inside the glass.
-      //   settle 0->1 : content is at natural size; only the silhouette clip
-      //                 keeps expanding past the frame edges.
-      const maskGrow = 1 + 5 * reveal.settle;
+      // The face quad projects convex — use it directly, in winding order.
+      const proj = pts2;
+      // Two beats, one anchor:
+      //   appear 0->1 : the reflection panel on the CA face fills in with the
+      //                 (crystal-blurred) page, mask glued to the live face;
+      //   settle 0->1 : the panel expands from the face outward until it
+      //                 fills the frame — the reflection unfolds into the UI.
+      // The face quad is smaller than the silhouette, so it needs more growth
+      // to clear the frame edges.
+      const maskGrow = 1 + 9 * reveal.settle;
       // Once the glass has dissolved and the pure mask expansion begins, the
       // silhouette must stop tracking the (invisible) rotating prism — a
       // wobbling, skewing polygon sweeping the screen reads as broken. Freeze
@@ -2365,10 +2349,12 @@ function frame(nowMs) {
       // first ~10% so the very first pixels never pop.
       const crystal = 1 - appear;
       homepageEl.style.opacity = pts.length >= 3
-        ? Math.min(1, appear * 9) * reveal.fadeOut : 0;
+        ? Math.min(1, appear * 2.2) * reveal.fadeOut : 0;
       homepageEl.style.clipPath = pts.length >= 3 ? `polygon(${pts.join(', ')})` : '';
+      // Content stays at natural scale — the panel IS a window onto the real
+      // page, exactly like a reflection of it; only the window moves/grows.
       homepageEl.style.transformOrigin = `${cx.toFixed(2)}% ${cy.toFixed(2)}%`;
-      homepageEl.style.transform = `scale(${(0.001 + 0.999 * appear).toFixed(4)})`;
+      homepageEl.style.transform = '';
       homepageEl.style.filter = crystal > 0.004
         ? `blur(${(crystal * 10).toFixed(2)}px)` +
           ` brightness(${(1 + crystal * 0.55).toFixed(3)})` +
