@@ -798,11 +798,11 @@ function heroRevealProgress(t) {
   // decelerates smoothly through the glass into the fan; no per-stage pauses.
   // Opening beat: only the prism for the first ~0.9s, then the ray travels
   // the whole path on one quintic ease-in-out — no snap anywhere.
-  const sRay = clamp((t - 0.3) / 3.0, 0, 1);
+  const sRay = clamp((t - 0.3) / 4.2, 0, 1);
   const sweep = 3 * (sRay * sRay * sRay * (sRay * (sRay * 6 - 15) + 10));
   // The fan opens after the front leaves the glass: the exit ray starts as a
   // tight, near-white beam and spreads into the full spectrum.
-  const d = clamp((t - 2.0) / 1.1, 0, 1);   // fan opens after the ray exits
+  const d = clamp((t - 2.6) / 1.5, 0, 1);   // fan opens after the ray exits
   const dispersion = d * d * (3 - 2 * d);            // smoothstep ease-in-out
   // Camera: in motion from the very first frame — a brisk drift blended into
   // an accelerating dive straight into the spectrum.
@@ -814,11 +814,11 @@ function heroRevealProgress(t) {
   // so the velocity curve is continuous — no kink where the charge begins.
   // Forward creep from the first frame, blending into the dive — both phases
   // zero-slope at their ends so the velocity curve never kinks.
-  const c = clamp(t / 3.0, 0, 1);
+  const c = clamp(t / 4.2, 0, 1);
   const creep = 0.05 * c * c * (3 - 2 * c);
   // The dive: quintic-over-q^2 — long gentle wind-up, gathers speed as the
   // prism looms, decelerates softly as the eye settles inside the glass.
-  const q = clamp((t - 2.8) / 1.6, 0, 1);
+  const q = clamp((t - 4.0) / 1.6, 0, 1);
   // Balanced quintic: the zoom is visible through the WHOLE dive — gentle
   // start, steady growth through the middle, soft landing inside the glass.
   const charge = q * q * q * (q * (q * 6 - 15) + 10);
@@ -831,7 +831,7 @@ function heroRevealProgress(t) {
   // ONE shared, time-based quintic crossfade drives the whole final handoff:
   // the GL scene eases out on exactly the same curve the DOM page eases in,
   // zero-slope at both ends — no linear cut, no pop, no mismatched clocks.
-  const hIn = clamp((t - 3.95) / 0.85, 0, 1);
+  const hIn = clamp((t - 5.15) / 0.85, 0, 1);
   const handoff = hIn * hIn * hIn * (hIn * (hIn * 6 - 15) + 10);
   const sceneFade = 1 - handoff;
   // Beams dim late — they stay part of the zoom, only yielding right before
@@ -842,7 +842,7 @@ function heroRevealProgress(t) {
   // visible strictly inside the prism while glass is on screen.
   // Long, gentle expansion: the visible part of the wipe (the window edges
   // crossing the screen) takes real time instead of flashing by.
-  const st = clamp((t - 3.95) / 1.25, 0, 1);
+  const st = clamp((t - 5.15) / 1.25, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -863,12 +863,12 @@ function heroRevealProgress(t) {
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 6.0;    // short hold after settle, then fade
+const LOOP_FADE_START = 7.2;    // short hold after settle, then fade
 const LOOP_FADE_DURATION = 0.7; // fade-to-black length
 const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.1; // + breath of black
 // Real-time compression: the whole cycle plays in REAL_DURATION seconds.
 // Every beat keeps its exact shape and overlaps — time just flows faster.
-const REAL_DURATION = 2.75;  // same pace as the 3s cut — intro time saved, not re-stretched
+const REAL_DURATION = 3.25;  // +0.5s breathing on the ray/dispersion core; other beats keep their pace
 const ANIM_SPEED = REVEAL_CYCLE / REAL_DURATION;
 // World point the camera flies toward: on the light plane, out along the fan.
 // The camera charges FORWARD, entering the glass and passing through it:
@@ -1990,7 +1990,7 @@ function frame(nowMs) {
     // around to present its side, and the camera passes through the side face
     // (~+80deg total by entry). Quintic, so the swing blends seamlessly out of
     // the idle drift.
-    const dq = clamp((elapsed - 2.8) / 1.6, 0, 1);
+    const dq = clamp((elapsed - 4.0) / 1.6, 0, 1);
     const diveSwing = dq * dq * dq * (dq * (dq * 6 - 15) + 10);
     state.orbitGoal = [yaw + 3.0 * diveSwing,   // uncapped drift -> no stall
                        0.07 * Math.sin((elapsed / 9) * Math.PI + 1.2)];
