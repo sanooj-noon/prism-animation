@@ -863,9 +863,9 @@ function heroRevealProgress(t) {
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 7.2;    // short hold after settle, then fade
-const LOOP_FADE_DURATION = 0.7; // fade-to-black length
-const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.1; // + breath of black
+const LOOP_FADE_START = 7.5;    // UI holds; quick dip straight into the next cycle
+const LOOP_FADE_DURATION = 0.5; // brief dip, no dwelling on black
+const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION; // no black beat — straight into the next cycle
 // Real-time compression: the whole cycle plays in REAL_DURATION seconds.
 // Every beat keeps its exact shape and overlaps — time just flows faster.
 const REAL_DURATION = 3.25;  // +0.5s breathing on the ray/dispersion core; other beats keep their pace
