@@ -835,7 +835,9 @@ function heroRevealProgress(t) {
   // After the crossfade completes, the mask keeps zooming (about screen
   // center) to finish the reveal — never before, so the UI is only ever
   // visible strictly inside the prism while glass is on screen.
-  const st = clamp((t - 5.7) / 0.65, 0, 1);
+  // Long, gentle expansion: the visible part of the wipe (the window edges
+  // crossing the screen) takes real time instead of flashing by.
+  const st = clamp((t - 5.55) / 1.5, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -2335,7 +2337,7 @@ function frame(nowMs) {
       //                 so the scaled page is always inside the glass.
       //   settle 0->1 : content is at natural size; only the silhouette clip
       //                 keeps expanding past the frame edges.
-      const maskGrow = 1 + 6 * reveal.settle;
+      const maskGrow = 1 + 5 * reveal.settle;
       let cx = 0, cy = 0;
       for (const [x, y] of proj) { cx += x; cy += y; }
       cx /= Math.max(1, proj.length); cy /= Math.max(1, proj.length);
