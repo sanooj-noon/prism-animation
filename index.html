@@ -23,7 +23,7 @@
      per-tile stagger once the UI becomes visible. */
   #homepage .reveal {
     opacity: 1;
-    transform: translateY(14px);
+    transform: translateY(30px);
     transition-property: opacity, transform;
     transition-duration: 550ms;
     transition-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
@@ -840,7 +840,7 @@ function heroRevealProgress(t) {
   // visible strictly inside the prism while glass is on screen.
   // Long, gentle expansion: the visible part of the wipe (the window edges
   // crossing the screen) takes real time instead of flashing by.
-  const st = clamp((t - 4.95) / 2.1, 0, 1);
+  const st = clamp((t - 4.95) / 1.25, 0, 1);
   const settle = st * st * st * (st * (st * 6 - 15) + 10);
   // Loop: hold the homepage, then everything eases down to black and replays.
   const k = clamp((t - LOOP_FADE_START) / LOOP_FADE_DURATION, 0, 1);
@@ -861,7 +861,7 @@ function heroRevealProgress(t) {
     homeOpacity: homeOpacity * fadeOut,
   };
 }
-const LOOP_FADE_START = 8.1;    // mask fully open ~7.05s -> ~1s full-page hold before the loop fades
+const LOOP_FADE_START = 7.6;    // mask fully open ~6.2s, tiles settled ~7 -> short hold, then loop
 const LOOP_FADE_DURATION = 0.7; // fade-to-black length
 const REVEAL_CYCLE = LOOP_FADE_START + LOOP_FADE_DURATION + 0.4; // + beat of black
 // World point the camera flies toward: on the light plane, out along the fan.
@@ -1840,7 +1840,7 @@ const homepageEl = document.getElementById('homepage');
   cards.forEach((card, i) => {
     const el = document.createElement('article');
     el.className = 'reveal card';
-    el.style.transitionDelay = ((3 + i) * 80) + 'ms';
+    el.style.transitionDelay = ((3 + i) * 130) + 'ms';
     el.innerHTML = `
       <div class="card__banner card__banner--${card.banner}">
         <div class="card__phone"></div>
